@@ -1,6 +1,5 @@
-import React from 'react';
-import { View, TextInput, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { StyleSheet, TextInput, View } from 'react-native';
 
 const SearchBar = ({ placeholder, value, onChangeText }) => {
   return (

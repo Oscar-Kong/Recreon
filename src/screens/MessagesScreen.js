@@ -1,18 +1,16 @@
 // src/screens/MessagesScreen.js
-import React, { useState, useEffect } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
   FlatList,
-  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import SearchBar from '../components/common/SearchBar';
-import ConversationItem from '../components/messages/ConversationItem';
+import ConversationItems from '../components/messages/ConversationItems';
 import PinnedConversations from '../components/messages/PinnedConversations';
 
 const MessagesScreen = ({ navigation }) => {
@@ -155,7 +153,7 @@ const MessagesScreen = ({ navigation }) => {
         data={filteredConversations}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <ConversationItem
+          <ConversationItems
             conversation={item}
             onPress={() => handleConversationPress(item)}
           />

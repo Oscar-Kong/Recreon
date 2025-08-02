@@ -1,23 +1,26 @@
 // src/screens/CalendarScreen.js
-import React, { useState, useEffect } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
+  Dimensions,
   FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import AddEventModal from '../components/calendar/AddEventModal';
 import CalendarView from '../components/calendar/CalendarView';
 import EventCard from '../components/calendar/EventCard';
-import AddEventModal from '../components/calendar/AddEventModal';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const CalendarScreen = ({ navigation }) => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [activeTab, setActiveTab] = useState('myEvents'); // 'myEvents' or 'findEvents'
   const [events, setEvents] = useState([]);
+  const [findEvents, setFindEvents] = useState([]);
   const [showAddEventModal, setShowAddEventModal] = useState(false);
 
   useEffect(() => {
@@ -25,15 +28,15 @@ const CalendarScreen = ({ navigation }) => {
   }, [selectedDate, activeTab]);
 
   const fetchEvents = async () => {
-    // Mock data - replace with actual API call
-    const mockEvents = [
+    // Mock data for My Events
+    const mockMyEvents = [
       {
         id: '1',
         name: 'Tennis Match',
         type: 'Singles',
         time: '10:00 - 11:00',
         date: new Date(),
-        notes: 'Bring extra rackets',
+        notes: 'Notes',
         color: '#DC2626',
       },
       {
@@ -42,7 +45,7 @@ const CalendarScreen = ({ navigation }) => {
         type: 'Singles',
         time: '10:00 - 11:00',
         date: new Date(),
-        notes: 'Court 3',
+        notes: 'Notes',
         color: '#D97706',
       },
       {
@@ -51,19 +54,54 @@ const CalendarScreen = ({ navigation }) => {
         type: 'Singles',
         time: '10:00 - 11:00',
         date: new Date(),
-        notes: 'Tournament prep',
+        notes: 'Notes',
         color: '#059669',
       },
     ];
 
-    setEvents(mockEvents);
+    // Mock data for Find Events
+    const mockFindEvents = [
+      {
+        id: '4',
+        name: 'Tennis',
+        type: 'Singles',
+        time: '10:00 - 11:00',
+        date: new Date(),
+        rank: 'Intermediate',
+        color: '#DC2626',
+        hasJoinButton: true,
+      },
+      {
+        id: '5',
+        name: 'Tennis',
+        type: 'Singles',
+        time: '10:00 - 11:00',
+        date: new Date(),
+        rank: 'Beginner',
+        color: '#D97706',
+        hasJoinButton: true,
+      },
+      {
+        id: '6',
+        name: 'Tennis',
+        type: 'Singles',
+        time: '10:00 - 11:00',
+        date: new Date(),
+        rank: 'Advanced',
+        color: '#059669',
+        hasJoinButton: true,
+      },
+    ];
+
+    if (activeTab === 'myEvents') {
+      setEvents(mockMyEvents);
+    } else {
+      setFindEvents(mockFindEvents);
+    }
   };
 
   const handleCreateEvent = (eventData) => {
-    // Handle event creation
     console.log('Creating event:', eventData);
-    // Add API call to save event
-    // Refresh events list
     fetchEvents();
   };
 
@@ -71,13 +109,39 @@ const CalendarScreen = ({ navigation }) => {
     navigation.navigate('EventDetails', { eventId: event.id });
   };
 
-  const renderEvent = ({ item }) => (
+  const handleJoinEvent = (event) => {
+    console.log('Joining event:', event.id);
+    // Add join logic here
+  };
+
+  const renderMyEvent = ({ item }) => (
     <EventCard event={item} onPress={() => handleEventPress(item)} />
+  );
+
+  const renderFindEvent = ({ item }) => (
+    <TouchableOpacity style={styles.findEventCard} onPress={() => handleEventPress(item)}>
+      <View style={[styles.eventColorBar, { backgroundColor: item.color }]} />
+      <View style={styles.findEventContent}>
+        <View style={styles.findEventHeader}>
+          <Text style={styles.findEventTime}>{item.time}</Text>
+          <Text style={styles.findEventType}>| {item.type}</Text>
+        </View>
+        <Text style={styles.findEventTitle}>{item.name}</Text>
+        <Text style={styles.findEventRank}>Ranks: {item.rank}</Text>
+      </View>
+      <TouchableOpacity 
+        style={styles.joinButton}
+        onPress={() => handleJoinEvent(item)}
+      >
+        <Ionicons name="add" size={28} color="#FFFFFF" />
+      </TouchableOpacity>
+    </TouchableOpacity>
   );
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      {/* Fixed Header and Calendar */}
+      <View style={styles.fixedTop}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => {
@@ -108,58 +172,55 @@ const CalendarScreen = ({ navigation }) => {
         <CalendarView
           selectedDate={selectedDate}
           onDateSelect={setSelectedDate}
-          events={events}
+          events={activeTab === 'myEvents' ? events : findEvents}
         />
+      </View>
 
-        {/* Tab Buttons */}
-        <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[styles.tabButton, activeTab === 'myEvents' && styles.activeTab]}
-            onPress={() => setActiveTab('myEvents')}
-          >
-            <Text style={[styles.tabText, activeTab === 'myEvents' && styles.activeTabText]}>
-              My Events
+      {/* Scrollable Events List */}
+      <FlatList
+        data={activeTab === 'myEvents' ? events : findEvents}
+        renderItem={activeTab === 'myEvents' ? renderMyEvent : renderFindEvent}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.eventsList}
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>
+              {activeTab === 'myEvents' 
+                ? 'No events scheduled' 
+                : 'No events found'}
             </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => setShowAddEventModal(true)}
-          >
-            <Ionicons name="add" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[styles.tabButton, activeTab === 'findEvents' && styles.activeTab]}
-            onPress={() => setActiveTab('findEvents')}
-          >
-            <Text style={[styles.tabText, activeTab === 'findEvents' && styles.activeTabText]}>
-              Find Events
-            </Text>
-          </TouchableOpacity>
-        </View>
+          </View>
+        }
+      />
 
-        {/* Events List */}
-        <View style={styles.eventsContainer}>
-          {events.length > 0 ? (
-            events.map((event) => (
-              <EventCard 
-                key={event.id} 
-                event={event} 
-                onPress={() => handleEventPress(event)} 
-              />
-            ))
-          ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>
-                {activeTab === 'myEvents' 
-                  ? 'No events scheduled' 
-                  : 'No events found'}
-              </Text>
-            </View>
-          )}
-        </View>
-      </ScrollView>
+      {/* Fixed Bottom Tab Buttons */}
+      <View style={styles.fixedTabContainer}>
+        <TouchableOpacity
+          style={[styles.tabButton, activeTab === 'myEvents' && styles.activeTab]}
+          onPress={() => setActiveTab('myEvents')}
+        >
+          <Text style={[styles.tabText, activeTab === 'myEvents' && styles.activeTabText]}>
+            My Events
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => setShowAddEventModal(true)}
+        >
+          <Ionicons name="add" size={32} color="#FFFFFF" />
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[styles.tabButton, activeTab === 'findEvents' && styles.activeTab]}
+          onPress={() => setActiveTab('findEvents')}
+        >
+          <Text style={[styles.tabText, activeTab === 'findEvents' && styles.activeTabText]}>
+            Find Events
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Add Event Modal */}
       <AddEventModal
@@ -174,6 +235,9 @@ const CalendarScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#000000',
+  },
+  fixedTop: {
     backgroundColor: '#000000',
   },
   header: {
@@ -197,43 +261,104 @@ const styles = StyleSheet.create({
     color: '#666666',
     marginTop: 2,
   },
-  tabContainer: {
+  eventsList: {
+    paddingHorizontal: 20,
+    paddingBottom: 100, // Space for fixed bottom tabs
+  },
+  fixedTabContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 20,
     paddingHorizontal: 20,
-    marginTop: 20,
-    marginBottom: 20,
+    backgroundColor: '#000000',
+    borderTopWidth: 1,
+    borderTopColor: '#1A1A1A',
   },
   tabButton: {
     backgroundColor: '#1A1A1A',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
+    paddingHorizontal: 30,
+    paddingVertical: 12,
+    borderRadius: 25,
   },
   activeTab: {
     backgroundColor: '#7B9F8C',
   },
   tabText: {
     color: '#666666',
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 16,
+    fontWeight: '600',
   },
   activeTabText: {
     color: '#FFFFFF',
   },
   addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: '#7B9F8C',
     justifyContent: 'center',
     alignItems: 'center',
-    marginHorizontal: 15,
+    marginHorizontal: 20,
   },
-  eventsContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+  // Find Events specific styles
+  findEventCard: {
+    flexDirection: 'row',
+    backgroundColor: '#1A1A1A',
+    borderRadius: 12,
+    marginBottom: 10,
+    overflow: 'hidden',
+    alignItems: 'center',
+  },
+  eventColorBar: {
+    width: 4,
+    height: '100%',
+    position: 'absolute',
+    left: 0,
+  },
+  findEventContent: {
+    flex: 1,
+    padding: 15,
+    paddingLeft: 20,
+  },
+  findEventHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  findEventTime: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  findEventType: {
+    color: '#666666',
+    fontSize: 14,
+    marginLeft: 5,
+  },
+  findEventTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 5,
+  },
+  findEventRank: {
+    color: '#666666',
+    fontSize: 14,
+  },
+  joinButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
   },
   emptyState: {
     alignItems: 'center',

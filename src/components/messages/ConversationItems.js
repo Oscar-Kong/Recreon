@@ -1,16 +1,12 @@
-// ===================================
-// src/components/messages/ConversationItem.js
-// ===================================
-import React from 'react';
-import { TouchableOpacity, View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const ConversationItem = ({ conversation, onPress }) => {
   const hasUnread = conversation.unreadCount > 0;
 
   return (
     <TouchableOpacity style={styles.container} onPress={onPress}>
-      <View style={[styles.avatar, { backgroundColor: conversation.color }]}>
+      <View style={[styles.avatar, { backgroundColor: conversation.color || '#666' }]}>
         <Ionicons name="person-outline" size={30} color="#000000" />
       </View>
       

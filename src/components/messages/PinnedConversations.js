@@ -1,9 +1,8 @@
 // ===================================
 // src/components/messages/PinnedConversations.js
 // ===================================
-import React from 'react';
-import { View, ScrollView, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 
 const PinnedConversations = ({ conversations, onPress }) => {
   return (

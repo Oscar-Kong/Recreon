@@ -1,18 +1,24 @@
 // src/components/calendar/AddEventModal.js
-import React, { useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { useRef, useState } from 'react';
 import {
-  View,
-  Text,
+  Animated,
+  Dimensions,
+  KeyboardAvoidingView,
+  Modal,
+  PanResponder,
+  Platform,
   ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  Modal,
-  Platform,
-  KeyboardAvoidingView,
-  Switch,
+  View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const MODAL_HEIGHT = SCREEN_HEIGHT * 0.9;
 
 const AddEventModal = ({ visible, onClose, onCreateEvent }) => {
   const [eventName, setEventName] = useState('');
@@ -23,11 +29,51 @@ const AddEventModal = ({ visible, onClose, onCreateEvent }) => {
   const [remindMe, setRemindMe] = useState(false);
   const [selectedTags, setSelectedTags] = useState([]);
 
+  // Animation values for dragging
+  const translateY = useRef(new Animated.Value(0)).current;
+
   const tags = [
     { id: 1, name: 'Tag', color: '#DC2626' },
     { id: 2, name: 'Tag', color: '#D97706' },
     { id: 3, name: 'Tag', color: '#059669' },
   ];
+
+  // Pan responder for drag handle
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only respond to vertical drags
+        return Math.abs(gestureState.dy) > 5;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          translateY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 100) {
+          // If dragged down more than 100 pixels, close the modal
+          Animated.timing(translateY, {
+            toValue: MODAL_HEIGHT,
+            duration: 300,
+            useNativeDriver: true,
+          }).start(() => {
+            translateY.setValue(0);
+            onClose();
+          });
+        } else {
+          // Otherwise, snap back to position
+          Animated.spring(translateY, {
+            toValue: 0,
+            tension: 40,
+            friction: 8,
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    })
+  ).current;
 
   const toggleTag = (tagId) => {
     setSelectedTags(prev => 
@@ -39,7 +85,6 @@ const AddEventModal = ({ visible, onClose, onCreateEvent }) => {
 
   const handleCreateEvent = () => {
     if (!eventName.trim()) {
-      // Add validation feedback
       return;
     }
 
@@ -67,130 +112,145 @@ const AddEventModal = ({ visible, onClose, onCreateEvent }) => {
     onClose();
   };
 
+  const resetAndClose = () => {
+    Animated.timing(translateY, {
+      toValue: 0,
+      duration: 0,
+      useNativeDriver: true,
+    }).start(() => {
+      onClose();
+    });
+  };
+
   return (
     <Modal
       visible={visible}
       animationType="slide"
       transparent={true}
-      onRequestClose={onClose}
+      onRequestClose={resetAndClose}
     >
       <View style={styles.modalOverlay}>
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalContainer}
+        <Animated.View 
+          style={[
+            styles.modalContainer,
+            {
+              transform: [{ translateY }],
+            },
+          ]}
         >
-          <View style={styles.modalContent}>
-            {/* Drag Handle */}
-            <View style={styles.dragHandle} />
-
-            {/* Header */}
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add New Event</Text>
-              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                <Ionicons name="close" size={24} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView 
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.scrollContent}
-            >
-              {/* Event Name Input */}
-              <TextInput
-                style={styles.input}
-                placeholder="Event name"
-                placeholderTextColor="#666666"
-                value={eventName}
-                onChangeText={setEventName}
-              />
-
-              {/* Notes Input */}
-              <TextInput
-                style={[styles.input, styles.notesInput]}
-                placeholder="Type note here..."
-                placeholderTextColor="#666666"
-                value={notes}
-                onChangeText={setNotes}
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-              />
-
-              {/* Date Picker */}
-              <TouchableOpacity style={styles.dateTimeInput}>
-                <Text style={styles.dateTimeText}>Date</Text>
-                <View style={styles.dateTimeValue}>
-                  <Text style={styles.dateTimeValueText}>
-                    {selectedDate.toLocaleDateString()}
-                  </Text>
-                  <Ionicons name="calendar-outline" size={20} color="#666666" />
-                </View>
-              </TouchableOpacity>
-
-              {/* Time Pickers */}
-              <View style={styles.timeRow}>
-                <TouchableOpacity style={[styles.timeInput, { marginRight: 10 }]}>
-                  <Text style={styles.timeLabel}>Start Time</Text>
-                  <View style={styles.timeValue}>
-                    <Ionicons name="time-outline" size={20} color="#666666" />
-                  </View>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={[styles.timeInput, { marginLeft: 10 }]}>
-                  <Text style={styles.timeLabel}>End Time</Text>
-                  <View style={styles.timeValue}>
-                    <Ionicons name="time-outline" size={20} color="#666666" />
-                  </View>
-                </TouchableOpacity>
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.keyboardView}
+          >
+            <View style={styles.modalContent}>
+              {/* Drag Handle */}
+              <View {...panResponder.panHandlers} style={styles.dragHandleContainer}>
+                <View style={styles.dragHandle} />
               </View>
 
-              {/* Remind Me Toggle */}
-              <View style={styles.remindRow}>
-                <Text style={styles.remindText}>Remind me</Text>
-                <Switch
-                  value={remindMe}
-                  onValueChange={setRemindMe}
-                  trackColor={{ false: '#333333', true: '#7B9F8C' }}
-                  thumbColor={remindMe ? '#FFFFFF' : '#666666'}
-                  ios_backgroundColor="#333333"
-                />
+              {/* Header */}
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Add New Event</Text>
               </View>
 
-              {/* Tags */}
-              <View style={styles.tagsSection}>
-                <Text style={styles.tagsTitle}>Tags</Text>
-                <View style={styles.tagsRow}>
-                  {tags.map(tag => (
-                    <TouchableOpacity
-                      key={tag.id}
-                      style={[
-                        styles.tag,
-                        { borderColor: tag.color },
-                        selectedTags.includes(tag.id) && { backgroundColor: tag.color }
-                      ]}
-                      onPress={() => toggleTag(tag.id)}
-                    >
-                      <Text style={[
-                        styles.tagText,
-                        selectedTags.includes(tag.id) && styles.tagTextActive
-                      ]}>
-                        {tag.name}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              {/* Create Event Button */}
-              <TouchableOpacity 
-                style={styles.createButton}
-                onPress={handleCreateEvent}
+              <ScrollView 
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContent}
               >
-                <Text style={styles.createButtonText}>Create Event</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
+                {/* Event Name Input */}
+                <TextInput
+                  style={styles.input}
+                  placeholder="Event name"
+                  placeholderTextColor="#666666"
+                  value={eventName}
+                  onChangeText={setEventName}
+                />
+
+                {/* Notes Input */}
+                <TextInput
+                  style={[styles.input, styles.notesInput]}
+                  placeholder="Type note here..."
+                  placeholderTextColor="#666666"
+                  value={notes}
+                  onChangeText={setNotes}
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                />
+
+                {/* Date Picker */}
+                <TouchableOpacity style={styles.dateTimeInput}>
+                  <Text style={styles.dateTimeText}>Date</Text>
+                  <View style={styles.dateTimeValue}>
+                    <Ionicons name="calendar-outline" size={20} color="#666666" />
+                  </View>
+                </TouchableOpacity>
+
+                {/* Time Pickers */}
+                <View style={styles.timeRow}>
+                  <TouchableOpacity style={[styles.timeInput, { marginRight: 10 }]}>
+                    <Text style={styles.timeLabel}>Start Time</Text>
+                    <View style={styles.timeValue}>
+                      <Ionicons name="time-outline" size={20} color="#666666" />
+                    </View>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={[styles.timeInput, { marginLeft: 10 }]}>
+                    <Text style={styles.timeLabel}>End Time</Text>
+                    <View style={styles.timeValue}>
+                      <Ionicons name="time-outline" size={20} color="#666666" />
+                    </View>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Remind Me Toggle */}
+                <View style={styles.remindRow}>
+                  <Text style={styles.remindText}>Remind me</Text>
+                  <Switch
+                    value={remindMe}
+                    onValueChange={setRemindMe}
+                    trackColor={{ false: '#333333', true: '#7B9F8C' }}
+                    thumbColor={remindMe ? '#FFFFFF' : '#666666'}
+                    ios_backgroundColor="#333333"
+                  />
+                </View>
+
+                {/* Tags */}
+                <View style={styles.tagsSection}>
+                  <Text style={styles.tagsTitle}>Tags</Text>
+                  <View style={styles.tagsRow}>
+                    {tags.map(tag => (
+                      <TouchableOpacity
+                        key={tag.id}
+                        style={[
+                          styles.tag,
+                          { borderColor: tag.color },
+                          selectedTags.includes(tag.id) && { backgroundColor: tag.color }
+                        ]}
+                        onPress={() => toggleTag(tag.id)}
+                      >
+                        <Text style={[
+                          styles.tagText,
+                          selectedTags.includes(tag.id) && styles.tagTextActive
+                        ]}>
+                          {tag.name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Create Event Button */}
+                <TouchableOpacity 
+                  style={styles.createButton}
+                  onPress={handleCreateEvent}
+                >
+                  <Text style={styles.createButtonText}>Create Event</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -203,29 +263,29 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContainer: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
     backgroundColor: '#1A1A1A',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    paddingTop: 10,
-    maxHeight: '90%',
+    height: MODAL_HEIGHT,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  modalContent: {
+    flex: 1,
+  },
+  dragHandleContainer: {
+    alignItems: 'center',
+    paddingVertical: 10,
   },
   dragHandle: {
     width: 40,
     height: 4,
-    backgroundColor: '#333333',
+    backgroundColor: '#666666',
     borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: 10,
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
     paddingBottom: 20,
   },
   modalTitle: {
@@ -233,16 +293,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  closeButton: {
-    padding: 5,
-  },
   scrollContent: {
     paddingHorizontal: 20,
     paddingBottom: 40,
   },
   input: {
     backgroundColor: '#000000',
-    borderRadius: 12,
+    borderRadius: 20,
     padding: 15,
     color: '#FFFFFF',
     fontSize: 16,
@@ -251,32 +308,28 @@ const styles = StyleSheet.create({
     borderColor: '#333333',
   },
   notesInput: {
-    height: 100,
+    height: 120,
     paddingTop: 15,
+    borderRadius: 20,
   },
   dateTimeInput: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: '#000000',
-    borderRadius: 12,
+    borderRadius: 20,
     padding: 15,
     marginBottom: 15,
     borderWidth: 1,
     borderColor: '#333333',
   },
   dateTimeText: {
-    color: '#FFFFFF',
+    color: '#999999',
     fontSize: 16,
   },
   dateTimeValue: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  dateTimeValueText: {
-    color: '#666666',
-    fontSize: 14,
-    marginRight: 10,
   },
   timeRow: {
     flexDirection: 'row',
@@ -288,13 +341,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: '#000000',
-    borderRadius: 12,
+    borderRadius: 20,
     padding: 15,
     borderWidth: 1,
     borderColor: '#333333',
   },
   timeLabel: {
-    color: '#FFFFFF',
+    color: '#999999',
     fontSize: 16,
   },
   timeValue: {
@@ -318,16 +371,16 @@ const styles = StyleSheet.create({
   tagsTitle: {
     color: '#FFFFFF',
     fontSize: 16,
-    marginBottom: 10,
+    marginBottom: 15,
   },
   tagsRow: {
     flexDirection: 'row',
     gap: 10,
   },
   tag: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
+    paddingHorizontal: 25,
+    paddingVertical: 12,
+    borderRadius: 25,
     borderWidth: 2,
   },
   tagText: {
@@ -340,7 +393,7 @@ const styles = StyleSheet.create({
   },
   createButton: {
     backgroundColor: '#7B9F8C',
-    borderRadius: 25,
+    borderRadius: 30,
     padding: 18,
     alignItems: 'center',
   },

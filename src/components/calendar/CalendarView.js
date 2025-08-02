@@ -1,5 +1,4 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const CalendarView = ({ selectedDate, onDateSelect, events }) => {
   const getDaysInMonth = (date) => {
@@ -94,7 +93,8 @@ const CalendarView = ({ selectedDate, onDateSelect, events }) => {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 15,
+    paddingBottom: -5, // Add this to reduce bottom space
   },
   weekDaysRow: {
     flexDirection: 'row',
