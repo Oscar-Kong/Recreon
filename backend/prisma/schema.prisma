@@ -1,0 +1,152 @@
+// This is your Prisma schema file
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // You can change this to mysql, sqlite, etc.
+  url      = env("DATABASE_URL")
+}
+
+// User model for authentication
+model User {
+  id              String          @id @default(cuid())
+  email           String          @unique
+  username        String          @unique
+  password        String
+  name            String?
+  avatar          String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  
+  // Relations
+  events          Event[]         @relation("EventCreator")
+  attendingEvents EventAttendee[]
+  messages        Message[]
+  games           Game[]
+  guides          Guide[]
+}
+
+// Main Event model
+model Event {
+  id              String          @id @default(cuid())
+  title           String
+  description     String?
+  location        String?
+  startDate       DateTime
+  endDate         DateTime
+  allDay          Boolean         @default(false)
+  color           String?         @default("#3B82F6") // Default blue color
+  recurring       Boolean         @default(false)
+  recurringType   RecurringType?
+  recurringEnd    DateTime?
+  reminder        Int?            // Minutes before event
+  status          EventStatus     @default(UPCOMING)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  
+  // Relations
+  creator         User            @relation("EventCreator", fields: [creatorId], references: [id])
+  creatorId       String
+  attendees       EventAttendee[]
+  messages        Message[]
+  games           Game[]
+  
+  @@index([startDate, endDate])
+  @@index([creatorId])
+}
+
+// Attendee/Participant management
+model EventAttendee {
+  id              String          @id @default(cuid())
+  status          AttendeeStatus  @default(PENDING)
+  joinedAt        DateTime        @default(now())
+  
+  // Relations
+  event           Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventId         String
+  user            User            @relation(fields: [userId], references: [id])
+  userId          String
+  
+  @@unique([eventId, userId])
+  @@index([userId])
+}
+
+// Messages/Chat functionality
+model Message {
+  id              String          @id @default(cuid())
+  content         String
+  createdAt       DateTime        @default(now())
+  edited          Boolean         @default(false)
+  editedAt        DateTime?
+  
+  // Relations
+  event           Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventId         String
+  sender          User            @relation(fields: [senderId], references: [id])
+  senderId        String
+  
+  @@index([eventId, createdAt])
+}
+
+// Games feature
+model Game {
+  id              String          @id @default(cuid())
+  name            String
+  description     String?
+  platform        String?         // PC, Mobile, Console, etc.
+  genre           String?
+  coverImage      String?
+  isActive        Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  
+  // Relations
+  event           Event?          @relation(fields: [eventId], references: [id])
+  eventId         String?
+  addedBy         User            @relation(fields: [addedById], references: [id])
+  addedById       String
+  
+  @@index([eventId])
+}
+
+// Guides/Resources
+model Guide {
+  id              String          @id @default(cuid())
+  title           String
+  content         String          @db.Text
+  category        String?
+  tags            String[]
+  published       Boolean         @default(false)
+  viewCount       Int             @default(0)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  
+  // Relations
+  author          User            @relation(fields: [authorId], references: [id])
+  authorId        String
+  
+  @@index([published, createdAt])
+}
+
+// Enums
+enum EventStatus {
+  UPCOMING
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+enum AttendeeStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  MAYBE
+}
+
+enum RecurringType {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+  CUSTOM
+}
