@@ -1,152 +1,446 @@
-// This is your Prisma schema file
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql" // You can change this to mysql, sqlite, etc.
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-// User model for authentication
-model User {
-  id              String          @id @default(cuid())
-  email           String          @unique
-  username        String          @unique
-  password        String
-  name            String?
-  avatar          String?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  
-  // Relations
-  events          Event[]         @relation("EventCreator")
-  attendingEvents EventAttendee[]
-  messages        Message[]
-  games           Game[]
-  guides          Guide[]
+// Enum definitions
+enum SkillLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+  PROFESSIONAL
 }
 
-// Main Event model
-model Event {
-  id              String          @id @default(cuid())
-  title           String
-  description     String?
-  location        String?
-  startDate       DateTime
-  endDate         DateTime
-  allDay          Boolean         @default(false)
-  color           String?         @default("#3B82F6") // Default blue color
-  recurring       Boolean         @default(false)
-  recurringType   RecurringType?
-  recurringEnd    DateTime?
-  reminder        Int?            // Minutes before event
-  status          EventStatus     @default(UPCOMING)
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  
-  // Relations
-  creator         User            @relation("EventCreator", fields: [creatorId], references: [id])
-  creatorId       String
-  attendees       EventAttendee[]
-  messages        Message[]
-  games           Game[]
-  
-  @@index([startDate, endDate])
-  @@index([creatorId])
-}
-
-// Attendee/Participant management
-model EventAttendee {
-  id              String          @id @default(cuid())
-  status          AttendeeStatus  @default(PENDING)
-  joinedAt        DateTime        @default(now())
-  
-  // Relations
-  event           Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  eventId         String
-  user            User            @relation(fields: [userId], references: [id])
-  userId          String
-  
-  @@unique([eventId, userId])
-  @@index([userId])
-}
-
-// Messages/Chat functionality
-model Message {
-  id              String          @id @default(cuid())
-  content         String
-  createdAt       DateTime        @default(now())
-  edited          Boolean         @default(false)
-  editedAt        DateTime?
-  
-  // Relations
-  event           Event           @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  eventId         String
-  sender          User            @relation(fields: [senderId], references: [id])
-  senderId        String
-  
-  @@index([eventId, createdAt])
-}
-
-// Games feature
-model Game {
-  id              String          @id @default(cuid())
-  name            String
-  description     String?
-  platform        String?         // PC, Mobile, Console, etc.
-  genre           String?
-  coverImage      String?
-  isActive        Boolean         @default(true)
-  createdAt       DateTime        @default(now())
-  
-  // Relations
-  event           Event?          @relation(fields: [eventId], references: [id])
-  eventId         String?
-  addedBy         User            @relation(fields: [addedById], references: [id])
-  addedById       String
-  
-  @@index([eventId])
-}
-
-// Guides/Resources
-model Guide {
-  id              String          @id @default(cuid())
-  title           String
-  content         String          @db.Text
-  category        String?
-  tags            String[]
-  published       Boolean         @default(false)
-  viewCount       Int             @default(0)
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  
-  // Relations
-  author          User            @relation(fields: [authorId], references: [id])
-  authorId        String
-  
-  @@index([published, createdAt])
-}
-
-// Enums
-enum EventStatus {
-  UPCOMING
-  ONGOING
+enum MatchStatus {
+  SCHEDULED
+  IN_PROGRESS
   COMPLETED
   CANCELLED
 }
 
-enum AttendeeStatus {
-  PENDING
-  ACCEPTED
-  DECLINED
-  MAYBE
+enum MatchType {
+  CASUAL
+  RANKED
+  TOURNAMENT
+  PRACTICE
 }
 
-enum RecurringType {
-  DAILY
-  WEEKLY
-  MONTHLY
-  YEARLY
-  CUSTOM
+enum ParticipantStatus {
+  CONFIRMED
+  PENDING
+  DECLINED
+  WAITLIST
+}
+
+// Users table
+model User {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique @db.VarChar(50)
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  fullName     String?  @map("full_name") @db.VarChar(100)
+  avatarUrl    String?  @map("avatar_url") @db.VarChar(500)
+  avatarColor  String?  @map("avatar_color") @db.VarChar(7)
+  
+  // Location data for regional rankings
+  city         String?  @db.VarChar(100)
+  state        String?  @db.VarChar(100)
+  country      String?  @db.VarChar(100)
+  latitude     Float?
+  longitude    Float?
+  
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  profile                UserProfile?
+  sportProfiles          UserSportProfile[]
+  rankings               UserRanking[]
+  createdEvents          Event[]                      @relation("EventCreator")
+  eventParticipations    EventParticipant[]
+  conversationParticipations ConversationParticipant[]
+  sentMessages           Message[]
+  createdMatches         Match[]                      @relation("MatchCreator")
+  matchParticipations    MatchParticipant[]
+  guides                 Guide[]
+  challengesSent         Challenge[]                  @relation("ChallengeSender")
+  challengesReceived     Challenge[]                  @relation("ChallengeReceiver")
+
+  @@index([city, state, country])
+  @@map("users")
+}
+
+// User profile for general info
+model UserProfile {
+  userId      Int     @id @map("user_id")
+  bio         String? @db.Text
+  dateOfBirth DateTime? @map("date_of_birth")
+  phoneNumber String? @map("phone_number") @db.VarChar(20)
+  
+  // Preferences
+  preferredSports String[] @map("preferred_sports")
+  availability   Json?    // Store weekly availability schedule
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+// Sports definition table
+model Sport {
+  id              Int     @id @default(autoincrement())
+  name            String  @unique @db.VarChar(50)
+  displayName     String  @map("display_name") @db.VarChar(100)
+  category        String  @db.VarChar(50) // 'racquet', 'team', 'individual', 'combat', etc.
+  icon            String? @db.VarChar(100)
+  maxPlayers      Int     @map("max_players")
+  minPlayers      Int     @map("min_players")
+  isTeamSport     Boolean @default(false) @map("is_team_sport")
+  scoringSystem   Json?   @map("scoring_system") // Flexible JSON for different scoring rules
+  
+  // Relations
+  userProfiles    UserSportProfile[]
+  rankings        UserRanking[]
+  matches         Match[]
+  events          Event[]
+  guides          Guide[]
+  rankingSeasons  RankingSeason[]
+
+  @@map("sports")
+}
+
+// User's profile for each sport they play
+model UserSportProfile {
+  id              Int        @id @default(autoincrement())
+  userId          Int        @map("user_id")
+  sportId         Int        @map("sport_id")
+  skillLevel      SkillLevel @map("skill_level")
+  yearsPlaying    Int?       @map("years_playing")
+  preferredPosition String?  @map("preferred_position") // For team sports
+  achievements    String[]   // List of achievements/certifications
+  isActive        Boolean    @default(true) @map("is_active")
+  joinedAt        DateTime   @default(now()) @map("joined_at")
+  
+  // Stats
+  matchesPlayed   Int        @default(0) @map("matches_played")
+  matchesWon      Int        @default(0) @map("matches_won")
+  winRate         Float      @default(0) @map("win_rate")
+  
+  // Relations
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sport           Sport      @relation(fields: [sportId], references: [id])
+
+  @@unique([userId, sportId])
+  @@index([sportId, skillLevel])
+  @@map("user_sport_profiles")
+}
+
+// Ranking system for competitive play
+model UserRanking {
+  id              Int      @id @default(autoincrement())
+  userId          Int      @map("user_id")
+  sportId         Int      @map("sport_id")
+  seasonId        Int      @map("season_id")
+  
+  // ELO-based ranking system
+  eloRating       Int      @default(1200) @map("elo_rating")
+  peakRating      Int      @default(1200) @map("peak_rating")
+  
+  // Rankings at different levels
+  cityRank        Int?     @map("city_rank")
+  stateRank       Int?     @map("state_rank")
+  countryRank     Int?     @map("country_rank")
+  globalRank      Int?     @map("global_rank")
+  
+  // Stats for the season
+  rankedMatchesPlayed Int  @default(0) @map("ranked_matches_played")
+  rankedMatchesWon    Int  @default(0) @map("ranked_matches_won")
+  streak              Int  @default(0) // Current win/loss streak
+  
+  lastUpdated     DateTime @updatedAt @map("last_updated")
+  
+  // Relations
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sport           Sport          @relation(fields: [sportId], references: [id])
+  season          RankingSeason  @relation(fields: [seasonId], references: [id])
+  matchHistory    MatchParticipant[]
+
+  @@unique([userId, sportId, seasonId])
+  @@index([sportId, eloRating(sort: Desc)])
+  @@index([sportId, cityRank])
+  @@index([sportId, stateRank])
+  @@index([sportId, countryRank])
+  @@map("user_rankings")
+}
+
+// Ranking seasons (e.g., quarterly, monthly)
+model RankingSeason {
+  id          Int      @id @default(autoincrement())
+  sportId     Int      @map("sport_id")
+  name        String   @db.VarChar(100)
+  startDate   DateTime @map("start_date")
+  endDate     DateTime @map("end_date")
+  isActive    Boolean  @default(true) @map("is_active")
+  
+  // Relations
+  sport       Sport    @relation(fields: [sportId], references: [id])
+  rankings    UserRanking[]
+
+  @@index([sportId, isActive])
+  @@map("ranking_seasons")
+}
+
+// Challenges between players
+model Challenge {
+  id              Int      @id @default(autoincrement())
+  senderId        Int      @map("sender_id")
+  receiverId      Int      @map("receiver_id")
+  sportId         Int      @map("sport_id")
+  matchId         Int?     @map("match_id") @unique
+  
+  proposedTime    DateTime @map("proposed_time")
+  expiresAt       DateTime @map("expires_at")
+  status          String   @db.VarChar(20) // 'pending', 'accepted', 'declined', 'expired'
+  stake           Int?     // Points at stake for ranked matches
+  
+  createdAt       DateTime @default(now()) @map("created_at")
+  
+  // Relations
+  sender          User     @relation("ChallengeSender", fields: [senderId], references: [id])
+  receiver        User     @relation("ChallengeReceiver", fields: [receiverId], references: [id])
+  sport           Sport    @relation(fields: [sportId], references: [id])
+  match           Match?   @relation(fields: [matchId], references: [id])
+
+  @@index([receiverId, status])
+  @@map("challenges")
+}
+
+// Matches (previously games)
+model Match {
+  id              Int         @id @default(autoincrement())
+  sportId         Int         @map("sport_id")
+  matchType       MatchType   @map("match_type")
+  status          MatchStatus
+  
+  // Location and timing
+  venue           String?     @db.VarChar(255)
+  latitude        Float?
+  longitude       Float?
+  scheduledTime   DateTime    @map("scheduled_time")
+  startTime       DateTime?   @map("start_time")
+  endTime         DateTime?   @map("end_time")
+  
+  // Match settings
+  maxPlayers      Int         @map("max_players")
+  minPlayers      Int         @map("min_players")
+  isPrivate       Boolean     @default(false) @map("is_private")
+  skillLevelMin   SkillLevel? @map("skill_level_min")
+  skillLevelMax   SkillLevel? @map("skill_level_max")
+  
+  // Scoring
+  scoreData       Json?       @map("score_data") // Flexible scoring for different sports
+  winnerTeam      Int?        @map("winner_team") // 1 or 2 for team sports
+  
+  createdBy       Int?        @map("created_by")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  
+  // Relations
+  sport           Sport       @relation(fields: [sportId], references: [id])
+  creator         User?       @relation("MatchCreator", fields: [createdBy], references: [id])
+  participants    MatchParticipant[]
+  challenge       Challenge?
+
+  @@index([sportId, status, scheduledTime])
+  @@index([latitude, longitude])
+  @@map("matches")
+}
+
+// Match participants with performance tracking
+model MatchParticipant {
+  matchId         Int      @map("match_id")
+  userId          Int      @map("user_id")
+  team            Int?     // For team sports: 1 or 2
+  position        String?  @db.VarChar(50) // Position played
+  
+  // Performance data
+  score           Int?
+  stats           Json?    // Sport-specific stats (goals, assists, aces, etc.)
+  performanceRating Float? @map("performance_rating") // 1-10 rating
+  
+  // Ranking impact (calculated after match)
+  eloChange       Int?     @map("elo_change")
+  rankingId       Int?     @map("ranking_id")
+  
+  joinedAt        DateTime @default(now()) @map("joined_at")
+  
+  // Relations
+  match           Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ranking         UserRanking? @relation(fields: [rankingId], references: [id])
+
+  @@id([matchId, userId])
+  @@map("match_participants")
+}
+
+// Events (for organizing tournaments, meetups, etc.)
+model Event {
+  id              Int      @id @default(autoincrement())
+  creatorId       Int      @map("creator_id")
+  sportId         Int      @map("sport_id")
+  title           String   @db.VarChar(200)
+  description     String?  @db.Text
+  eventType       String   @map("event_type") @db.VarChar(50) // 'tournament', 'practice', 'social', 'league'
+  
+  // Timing
+  startTime       DateTime @map("start_time")
+  endTime         DateTime @map("end_time")
+  registrationDeadline DateTime? @map("registration_deadline")
+  
+  // Location
+  venue           String?  @db.VarChar(255)
+  latitude        Float?
+  longitude       Float?
+  
+  // Capacity
+  maxParticipants Int?     @map("max_participants")
+  minParticipants Int?     @map("min_participants")
+  
+  // Requirements
+  skillLevelMin   SkillLevel? @map("skill_level_min")
+  skillLevelMax   SkillLevel? @map("skill_level_max")
+  entryFee        Float?   @map("entry_fee")
+  
+  status          String   @default("active") @db.VarChar(20)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  // Relations
+  creator         User     @relation("EventCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  sport           Sport    @relation(fields: [sportId], references: [id])
+  participants    EventParticipant[]
+  tags            EventTag[]
+
+  @@index([sportId, startTime])
+  @@map("events")
+}
+
+// Event participants
+model EventParticipant {
+  eventId         Int      @map("event_id")
+  userId          Int      @map("user_id")
+  status          ParticipantStatus
+  registeredAt    DateTime @default(now()) @map("registered_at")
+  checkedInAt     DateTime? @map("checked_in_at")
+  
+  // For tournaments
+  seed            Int?     // Tournament seeding
+  finalPosition   Int?     @map("final_position")
+
+  // Relations
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, userId])
+  @@map("event_participants")
+}
+
+// Event tags
+model EventTag {
+  id       Int     @id @default(autoincrement())
+  eventId  Int     @map("event_id")
+  tagName  String  @map("tag_name") @db.VarChar(50)
+  tagColor String? @map("tag_color") @db.VarChar(7)
+
+  // Relations
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@map("event_tags")
+}
+
+// Messages/Conversations (unchanged from before)
+model Conversation {
+  id              Int      @id @default(autoincrement())
+  conversationType String  @default("direct") @map("conversation_type") @db.VarChar(20)
+  context         String?  @db.VarChar(50) // 'general', 'match_planning', 'team_discussion'
+  avatarColor     String?  @map("avatar_color") @db.VarChar(7)
+  title           String?  @db.VarChar(100)
+  lastMessageAt   DateTime? @map("last_message_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  // Relations
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@map("conversations")
+}
+
+// Conversation participants
+model ConversationParticipant {
+  conversationId Int       @map("conversation_id")
+  userId         Int       @map("user_id")
+  role           String    @default("member") @db.VarChar(20)
+  joinedAt       DateTime  @default(now()) @map("joined_at")
+  lastReadAt     DateTime? @map("last_read_at")
+  isPinned       Boolean   @default(false) @map("is_pinned")
+  notificationEnabled Boolean @default(true) @map("notification_enabled")
+
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@map("conversation_participants")
+}
+
+// Messages
+model Message {
+  id             Int       @id @default(autoincrement())
+  conversationId Int       @map("conversation_id")
+  senderId       Int       @map("sender_id")
+  content        String    @db.Text
+  messageType    String    @default("text") @map("message_type") @db.VarChar(20)
+  metadata       Json?     // For rich content (images, match invites, etc.)
+  isEdited       Boolean   @default(false) @map("is_edited")
+  editedAt       DateTime? @map("edited_at")
+  isDeleted      Boolean   @default(false) @map("is_deleted")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt(sort: Desc)])
+  @@map("messages")
+}
+
+// Guides/Blogs
+model Guide {
+  id              Int      @id @default(autoincrement())
+  authorId        Int?     @map("author_id")
+  sportId         Int      @map("sport_id")
+  title           String   @db.VarChar(200)
+  content         String   @db.Text
+  tags            String[]
+  skillLevel      SkillLevel? @map("skill_level")
+  readTime        Int?     @map("read_time") // in minutes
+  thumbnailUrl    String?  @map("thumbnail_url") @db.VarChar(500)
+  viewCount       Int      @default(0) @map("view_count")
+  isPublished     Boolean  @default(true) @map("is_published")
+  publishedAt     DateTime @default(now()) @map("published_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  author User?  @relation(fields: [authorId], references: [id])
+  sport  Sport  @relation(fields: [sportId], references: [id])
+
+  @@index([sportId, skillLevel])
+  @@map("guides")
 }
