@@ -1,6 +1,6 @@
-// src/components/calendar/AddEventModal.js
+// src/components/calendar/AddEventModal.js - OPTIMIZED VERSION
 import { Ionicons } from '@expo/vector-icons';
-import { useRef, useState } from 'react';
+import { useRef, useState, useCallback, useMemo } from 'react';
 import {
   Animated,
   Dimensions,
@@ -19,6 +19,7 @@ import {
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const MODAL_HEIGHT = SCREEN_HEIGHT * 0.9;
+const CLOSE_THRESHOLD = 100; // Pixels to drag before closing
 
 const AddEventModal = ({ visible, onClose, onCreateEvent }) => {
   const [eventName, setEventName] = useState('');
@@ -29,61 +30,86 @@ const AddEventModal = ({ visible, onClose, onCreateEvent }) => {
   const [remindMe, setRemindMe] = useState(false);
   const [selectedTags, setSelectedTags] = useState([]);
 
-  // Animation values for dragging
+  // Animation values - optimized with useRef
   const translateY = useRef(new Animated.Value(0)).current;
+  const gestureState = useRef({ isActive: false }).current;
 
-  const tags = [
+  // Memoized tags to prevent re-creation
+  const tags = useMemo(() => [
     { id: 1, name: 'Tag', color: '#DC2626' },
     { id: 2, name: 'Tag', color: '#D97706' },
     { id: 3, name: 'Tag', color: '#059669' },
-  ];
+  ], []);
 
-  // Pan responder for drag handle
+  // Optimized pan responder with performance improvements
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        // Only respond to vertical drags
-        return Math.abs(gestureState.dy) > 5;
+        // Only respond to vertical drags greater than 5px
+        return Math.abs(gestureState.dy) > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
       },
-      onPanResponderMove: (_, gestureState) => {
-        if (gestureState.dy > 0) {
-          translateY.setValue(gestureState.dy);
+      onPanResponderGrant: () => {
+        gestureState.isActive = true;
+        // Set initial value for smoother animation start
+        translateY.setOffset(translateY._value);
+        translateY.setValue(0);
+      },
+      onPanResponderMove: (_, gesture) => {
+        // Only allow downward dragging and limit the range
+        if (gesture.dy > 0 && gesture.dy < MODAL_HEIGHT * 0.5) {
+          // Use native driver compatible animation
+          translateY.setValue(gesture.dy);
         }
       },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy > 100) {
-          // If dragged down more than 100 pixels, close the modal
+      onPanResponderRelease: (_, gesture) => {
+        gestureState.isActive = false;
+        translateY.flattenOffset();
+
+        if (gesture.dy > CLOSE_THRESHOLD || gesture.vy > 0.5) {
+          // Close modal with faster animation
           Animated.timing(translateY, {
             toValue: MODAL_HEIGHT,
-            duration: 300,
+            duration: 200,
             useNativeDriver: true,
           }).start(() => {
             translateY.setValue(0);
             onClose();
           });
         } else {
-          // Otherwise, snap back to position
+          // Snap back with spring animation for better feel
           Animated.spring(translateY, {
             toValue: 0,
-            tension: 40,
+            tension: 100,
             friction: 8,
             useNativeDriver: true,
           }).start();
         }
       },
+      onPanResponderTerminate: () => {
+        gestureState.isActive = false;
+        translateY.flattenOffset();
+        // Snap back if gesture is terminated
+        Animated.spring(translateY, {
+          toValue: 0,
+          tension: 100,
+          friction: 8,
+          useNativeDriver: true,
+        }).start();
+      },
     })
   ).current;
 
-  const toggleTag = (tagId) => {
+  // Memoized handlers to prevent re-creation
+  const toggleTag = useCallback((tagId) => {
     setSelectedTags(prev => 
       prev.includes(tagId) 
         ? prev.filter(id => id !== tagId)
         : [...prev, tagId]
     );
-  };
+  }, []);
 
-  const handleCreateEvent = () => {
+  const handleCreateEvent = useCallback(() => {
     if (!eventName.trim()) {
       return;
     }
@@ -110,9 +136,9 @@ const AddEventModal = ({ visible, onClose, onCreateEvent }) => {
     setSelectedTags([]);
     
     onClose();
-  };
+  }, [eventName, notes, selectedDate, startTime, endTime, remindMe, selectedTags, onCreateEvent, onClose]);
 
-  const resetAndClose = () => {
+  const resetAndClose = useCallback(() => {
     Animated.timing(translateY, {
       toValue: 0,
       duration: 0,
@@ -120,7 +146,12 @@ const AddEventModal = ({ visible, onClose, onCreateEvent }) => {
     }).start(() => {
       onClose();
     });
-  };
+  }, [onClose, translateY]);
+
+  // Memoized styles for better performance
+  const animatedStyle = useMemo(() => ({
+    transform: [{ translateY }],
+  }), [translateY]);
 
   return (
     <Modal
@@ -128,22 +159,18 @@ const AddEventModal = ({ visible, onClose, onCreateEvent }) => {
       animationType="slide"
       transparent={true}
       onRequestClose={resetAndClose}
+      statusBarTranslucent={true}
     >
       <View style={styles.modalOverlay}>
         <Animated.View 
-          style={[
-            styles.modalContainer,
-            {
-              transform: [{ translateY }],
-            },
-          ]}
+          style={[styles.modalContainer, animatedStyle]}
         >
           <KeyboardAvoidingView 
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.keyboardView}
           >
             <View style={styles.modalContent}>
-              {/* Drag Handle */}
+              {/* Drag Handle - Only this area responds to pan gestures */}
               <View {...panResponder.panHandlers} style={styles.dragHandleContainer}>
                 <View style={styles.dragHandle} />
               </View>
@@ -153,9 +180,15 @@ const AddEventModal = ({ visible, onClose, onCreateEvent }) => {
                 <Text style={styles.modalTitle}>Add New Event</Text>
               </View>
 
+              {/* Optimized ScrollView with performance props */}
               <ScrollView 
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
+                keyboardShouldPersistTaps="handled"
+                scrollEventThrottle={16}
+                removeClippedSubviews={true}
+                maxToRenderPerBatch={10}
+                windowSize={10}
               >
                 {/* Event Name Input */}
                 <TextInput
@@ -164,6 +197,7 @@ const AddEventModal = ({ visible, onClose, onCreateEvent }) => {
                   placeholderTextColor="#666666"
                   value={eventName}
                   onChangeText={setEventName}
+                  maxLength={100}
                 />
 
                 {/* Notes Input */}
@@ -176,6 +210,7 @@ const AddEventModal = ({ visible, onClose, onCreateEvent }) => {
                   multiline
                   numberOfLines={4}
                   textAlignVertical="top"
+                  maxLength={500}
                 />
 
                 {/* Date Picker */}
@@ -228,6 +263,7 @@ const AddEventModal = ({ visible, onClose, onCreateEvent }) => {
                           selectedTags.includes(tag.id) && { backgroundColor: tag.color }
                         ]}
                         onPress={() => toggleTag(tag.id)}
+                        activeOpacity={0.7}
                       >
                         <Text style={[
                           styles.tagText,
@@ -244,6 +280,7 @@ const AddEventModal = ({ visible, onClose, onCreateEvent }) => {
                 <TouchableOpacity 
                   style={styles.createButton}
                   onPress={handleCreateEvent}
+                  activeOpacity={0.8}
                 >
                   <Text style={styles.createButtonText}>Create Event</Text>
                 </TouchableOpacity>
@@ -267,6 +304,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     height: MODAL_HEIGHT,
+    // Remove any shadow/elevation that might cause performance issues
   },
   keyboardView: {
     flex: 1,
@@ -276,7 +314,9 @@ const styles = StyleSheet.create({
   },
   dragHandleContainer: {
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 12,
+    // Increase touch area for better gesture handling
+    paddingHorizontal: 50,
   },
   dragHandle: {
     width: 40,
@@ -296,6 +336,8 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingBottom: 40,
+    // Add grow property for better ScrollView performance
+    flexGrow: 1,
   },
   input: {
     backgroundColor: '#000000',
@@ -310,7 +352,7 @@ const styles = StyleSheet.create({
   notesInput: {
     height: 120,
     paddingTop: 15,
-    borderRadius: 20,
+    textAlignVertical: 'top',
   },
   dateTimeInput: {
     flexDirection: 'row',
@@ -396,6 +438,12 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     padding: 18,
     alignItems: 'center',
+    // Add shadow for better visual feedback
+    shadowColor: '#7B9F8C',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   createButtonText: {
     color: '#FFFFFF',
