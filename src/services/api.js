@@ -3,7 +3,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const API_URL = __DEV__ 
-  ? 'http://localhost:5000/api'  // Make sure this matches your backend port
+  ? '172.20.10.4'  // Make sure this matches your backend port
   : 'https://your-production-api.com/api';
 
 const api = axios.create({

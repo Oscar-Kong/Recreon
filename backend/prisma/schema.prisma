@@ -114,6 +114,7 @@ model Sport {
   events          Event[]
   guides          Guide[]
   rankingSeasons  RankingSeason[]
+  challenges      Challenge[]  
 
   @@map("sports")
 }
