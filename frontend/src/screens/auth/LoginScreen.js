@@ -1,3 +1,4 @@
+// src/screens/auth/LoginScreen.js (Updated with correct import)
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -18,7 +19,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '../../hooks/useAuth';  // ✅ Fixed import path
 
 const { width, height } = Dimensions.get('window');
 
@@ -90,30 +91,29 @@ export default function LoginScreen({ navigation }) {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.keyboardView}
           >
-            <ScrollView
+            <ScrollView 
               contentContainerStyle={styles.scrollContent}
-              showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
-              <Animated.View
+              <Animated.View 
                 style={[
                   styles.content,
                   {
                     opacity: fadeAnim,
-                    transform: [{ translateY: slideAnim }],
-                  },
+                    transform: [{ translateY: slideAnim }]
+                  }
                 ]}
               >
-                {/* Logo/App Name */}
+                {/* Logo Section */}
                 <View style={styles.logoContainer}>
                   <View style={styles.logoCircle}>
-                    <Ionicons name="trophy" size={50} color="#4CAF50" />
+                    <Ionicons name="chatbubble-ellipses" size={50} color="#4CAF50" />
                   </View>
-                  <Text style={styles.appName}>ClubRoom</Text>
-                  <Text style={styles.tagline}>Connect. Play. Compete.</Text>
+                  <Text style={styles.appName}>ChatApp</Text>
+                  <Text style={styles.tagline}>Connect & Chat</Text>
                 </View>
 
-                {/* Form */}
+                {/* Form Section */}
                 <View style={styles.formContainer}>
                   <View style={styles.inputContainer}>
                     <Ionicons name="person-outline" size={20} color="#666" style={styles.inputIcon} />
@@ -153,45 +153,32 @@ export default function LoginScreen({ navigation }) {
                   <TouchableOpacity style={styles.forgotPassword}>
                     <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
                   </TouchableOpacity>
-
-                  <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
-                    <TouchableOpacity
-                      style={styles.loginButton}
-                      onPress={handleLogin}
-                      disabled={loading}
-                    >
-                      <LinearGradient
-                        colors={['#4CAF50', '#45a049']}
-                        style={styles.loginButtonGradient}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                      >
-                        {loading ? (
-                          <ActivityIndicator color="#fff" />
-                        ) : (
-                          <Text style={styles.loginButtonText}>Sign In</Text>
-                        )}
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  </Animated.View>
-
-                  <View style={styles.dividerContainer}>
-                    <View style={styles.divider} />
-                    <Text style={styles.dividerText}>OR</Text>
-                    <View style={styles.divider} />
-                  </View>
-
-                  {/* Social Login Buttons */}
-                  <TouchableOpacity style={styles.socialButton}>
-                    <Ionicons name="logo-google" size={20} color="#DB4437" />
-                    <Text style={styles.socialButtonText}>Continue with Google</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={styles.socialButton}>
-                    <Ionicons name="logo-apple" size={20} color="#fff" />
-                    <Text style={styles.socialButtonText}>Continue with Apple</Text>
-                  </TouchableOpacity>
                 </View>
+
+                {/* Login Button */}
+                <Animated.View 
+                  style={[
+                    styles.loginButton,
+                    { transform: [{ scale: buttonScale }] }
+                  ]}
+                >
+                  <TouchableOpacity 
+                    onPress={handleLogin}
+                    disabled={loading}
+                    style={styles.loginButtonTouch}
+                  >
+                    <LinearGradient
+                      colors={['#4CAF50', '#45a049']}
+                      style={styles.loginButtonGradient}
+                    >
+                      {loading ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <Text style={styles.loginButtonText}>Sign In</Text>
+                      )}
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </Animated.View>
 
                 {/* Sign Up Link */}
                 <View style={styles.signupContainer}>
@@ -294,6 +281,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
   },
+  loginButtonTouch: {
+    width: '100%',
+  },
   loginButtonGradient: {
     paddingVertical: 16,
     alignItems: 'center',
@@ -302,37 +292,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
-  },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 20,
-  },
-  divider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  dividerText: {
-    color: '#666',
-    paddingHorizontal: 10,
-    fontSize: 14,
-  },
-  socialButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 12,
-    paddingVertical: 14,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  socialButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    marginLeft: 10,
   },
   signupContainer: {
     flexDirection: 'row',

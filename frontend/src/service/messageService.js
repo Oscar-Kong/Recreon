@@ -1,3 +1,4 @@
+// src/services/messageService.js
 import api from './api';
 
 export const messageService = {
@@ -6,7 +7,7 @@ export const messageService = {
       const response = await api.get('/messages/conversations');
       return response.data;
     } catch (error) {
-      throw error.response?.data || error;
+      throw error.response?.data || { error: 'Failed to get conversations' };
     }
   },
 
@@ -19,7 +20,7 @@ export const messageService = {
       });
       return response.data.conversation;
     } catch (error) {
-      throw error.response?.data || error;
+      throw error.response?.data || { error: 'Failed to create conversation' };
     }
   },
 
@@ -31,7 +32,7 @@ export const messageService = {
       const response = await api.get(`/messages/conversations/${conversationId}/messages`, { params });
       return response.data;
     } catch (error) {
-      throw error.response?.data || error;
+      throw error.response?.data || { error: 'Failed to get messages' };
     }
   },
 
@@ -44,7 +45,7 @@ export const messageService = {
       });
       return response.data.message;
     } catch (error) {
-      throw error.response?.data || error;
+      throw error.response?.data || { error: 'Failed to send message' };
     }
   },
 
@@ -53,7 +54,7 @@ export const messageService = {
       const response = await api.put(`/messages/conversations/${conversationId}/pin`);
       return response.data.isPinned;
     } catch (error) {
-      throw error.response?.data || error;
+      throw error.response?.data || { error: 'Failed to toggle pin' };
     }
   },
 
@@ -62,7 +63,7 @@ export const messageService = {
       await api.delete(`/messages/messages/${messageId}`);
       return true;
     } catch (error) {
-      throw error.response?.data || error;
+      throw error.response?.data || { error: 'Failed to delete message' };
     }
   }
 };

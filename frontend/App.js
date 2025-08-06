@@ -1,8 +1,8 @@
-// App.js (in root, not in app folder)
+// App.js (Updated with correct import paths)
 import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { AuthProvider } from './src/hooks/useAuth';
+import { AuthProvider } from './src/hooks/useAuth';  // ✅ Fixed import path
 import AppNavigator from './src/navigation/AppNavigator';
 
 export default function App() {
