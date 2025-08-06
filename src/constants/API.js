@@ -3,7 +3,7 @@ export const API_BASE_URL = __DEV__
   : 'https://your-production-api.com/api';
 
 export const SOCKET_URL = __DEV__ 
-  ? 'http://localhost:5000' 
+  ? 'http://172.20.10.4:5001' 
   : 'https://your-production-api.com';
 
 export const API_TIMEOUT = 10000;
