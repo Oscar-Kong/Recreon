@@ -1,3 +1,4 @@
+// src/hooks/useAuth.js
 import { useState, useEffect, useContext, createContext } from 'react';
 import { authService } from '../services/authService';
 
@@ -26,26 +27,42 @@ export const AuthProvider = ({ children }) => {
   };
 
   const login = async (username, password) => {
-    const data = await authService.login(username, password);
-    setUser(data.user);
-    return data;
+    try {
+      const data = await authService.login(username, password);
+      setUser(data.user);
+      return data;
+    } catch (error) {
+      throw error;
+    }
   };
 
   const register = async (userData) => {
-    const data = await authService.register(userData);
-    setUser(data.user);
-    return data;
+    try {
+      const data = await authService.register(userData);
+      setUser(data.user);
+      return data;
+    } catch (error) {
+      throw error;
+    }
   };
 
   const logout = async () => {
-    await authService.logout();
-    setUser(null);
+    try {
+      await authService.logout();
+      setUser(null);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
   const updateProfile = async (profileData) => {
-    const updatedUser = await authService.updateProfile(profileData);
-    setUser(updatedUser);
-    return updatedUser;
+    try {
+      const updatedUser = await authService.updateProfile(profileData);
+      setUser(updatedUser);
+      return updatedUser;
+    } catch (error) {
+      throw error;
+    }
   };
 
   return (
