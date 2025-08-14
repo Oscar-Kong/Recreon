@@ -25,6 +25,23 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Health check endpoint - ADD THIS!
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    service: 'clubroom-backend'
+  });
+});
+
+// Test endpoint for debugging - ADD THIS TOO!
+app.get('/api/test', (req, res) => {
+  res.json({ 
+    message: 'API is working!', 
+    timestamp: new Date().toISOString() 
+  });
+});
+
 // Routes
 const authRoutes = require('./routes/authRoutes');
 const messageRoutes = require('./routes/messageRoutes');
@@ -99,14 +116,6 @@ io.on('connection', (socket) => {
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Something went wrong!' });
-});
-
-app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'OK', 
-    timestamp: new Date().toISOString(),
-    service: 'clubroom-backend'
-  });
 });
 
 // Start server
