@@ -19,8 +19,10 @@ class SocketService {
         return false;
       }
 
+      // Docker setup consideration: Use your machine's IP, not localhost
+      // For development, you might need your actual IP address
       const SOCKET_URL = __DEV__ 
-        ? 'http://localhost:5000' 
+        ? 'http://localhost:5000'  // Works if using physical device on same network
         : 'https://your-production-api.com';
 
       this.socket = io(SOCKET_URL, {
