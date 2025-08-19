@@ -5,8 +5,20 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export const authService = {
   async register(userData) {
     try {
+      console.log('📝 Attempting registration with data:', {
+        username: userData.username,
+        email: userData.email,
+        fullName: userData.fullName,
+        hasPassword: !!userData.password
+      });
+
       const response = await api.post('/auth/register', userData);
       
+      console.log('✅ Registration successful:', {
+        hasToken: !!response.data.token,
+        hasUser: !!response.data.user
+      });
+
       if (response.data.token) {
         await AsyncStorage.setItem('authToken', response.data.token);
         await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
@@ -14,14 +26,38 @@ export const authService = {
       
       return response.data;
     } catch (error) {
-      throw error.response?.data || { error: 'Registration failed' };
+      console.error('❌ Registration failed:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message,
+        code: error.code
+      });
+
+      // More specific error handling
+      if (error.code === 'NETWORK_ERROR' || error.message.includes('Network Error')) {
+        throw { error: 'Cannot connect to server. Check your connection and IP address.' };
+      }
+      
+      if (error.response?.status === 400) {
+        const errorMsg = error.response.data?.error || 
+                        error.response.data?.errors?.[0]?.msg || 
+                        'Validation failed';
+        throw { error: errorMsg };
+      }
+
+      throw error.response?.data || { error: 'Registration failed - Unknown error' };
     }
   },
 
   async login(username, password) {
     try {
+      console.log('🔐 Attempting login for:', username);
+      
       const response = await api.post('/auth/login', { username, password });
       
+      console.log('✅ Login successful');
+
       if (response.data.token) {
         await AsyncStorage.setItem('authToken', response.data.token);
         await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
@@ -29,21 +65,27 @@ export const authService = {
       
       return response.data;
     } catch (error) {
+      console.error('❌ Login failed:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
+
+      if (error.code === 'NETWORK_ERROR' || error.message.includes('Network Error')) {
+        throw { error: 'Cannot connect to server. Check your connection.' };
+      }
+
       throw error.response?.data || { error: 'Login failed' };
     }
   },
 
+  // ... rest of your existing methods remain the same
   async logout() {
     try {
-      // Clear local storage
       await AsyncStorage.removeItem('authToken');
       await AsyncStorage.removeItem('user');
-      
-      // Optional: Call backend logout endpoint if you have one
-      // await api.post('/auth/logout');
     } catch (error) {
       console.error('Logout error:', error);
-      // Still clear local storage even if API call fails
       await AsyncStorage.removeItem('authToken');
       await AsyncStorage.removeItem('user');
     }
@@ -52,10 +94,7 @@ export const authService = {
   async getCurrentUser() {
     try {
       const response = await api.get('/auth/me');
-      
-      // Update stored user data with fresh data from server
       await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
-      
       return response.data.user;
     } catch (error) {
       throw error.response?.data || { error: 'Failed to get current user' };
@@ -65,10 +104,7 @@ export const authService = {
   async updateProfile(profileData) {
     try {
       const response = await api.put('/auth/profile', profileData);
-      
-      // Update stored user data
       await AsyncStorage.setItem('user', JSON.stringify(response.data.user));
-      
       return response.data.user;
     } catch (error) {
       throw error.response?.data || { error: 'Profile update failed' };
