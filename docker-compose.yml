@@ -1,53 +1,113 @@
+version: '3.8'
+
 services:
   database:
-    container_name: clubroom-database
     image: postgres:16-alpine
+    container_name: clubroom-db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: clubroom_dev
-    ports:
-      - '5432:5432'
+      POSTGRES_DB: clubroom
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres -d clubroom_dev']
-      interval: 5s
-      timeout: 3s
-      retries: 10
-      start_period: 10s
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - clubroom-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: clubroom-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - clubroom-network
 
   backend:
-    container_name: clubroom-backend
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - '5000:5000'     # Main API server
-      - '5555:5555'     # Prisma Studio (optional)
-    env_file:
-      - .env
+    container_name: clubroom-backend
     environment:
+      DATABASE_URL: postgresql://postgres:postgres@database:5432/clubroom
+      PORT: 5000
+      JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-in-production}
+      JWT_EXPIRE: ${JWT_EXPIRE:-7d}
+      CLIENT_URL: http://localhost:8081
       NODE_ENV: development
-      DATABASE_URL: postgresql://postgres:postgres@database:5432/clubroom_dev
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      WEATHER_API_KEY: ${WEATHER_API_KEY}
+      MAPBOX_API_KEY: ${MAPBOX_API_KEY}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
+      EXPO_ACCESS_TOKEN: ${EXPO_ACCESS_TOKEN}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_BUCKET_NAME: ${AWS_BUCKET_NAME}
+      AWS_REGION: ${AWS_REGION}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+      SENTRY_DSN: ${SENTRY_DSN}
+      GOOGLE_ANALYTICS_ID: ${GOOGLE_ANALYTICS_ID}
+    ports:
+      - "5000:5000"
     depends_on:
       database:
         condition: service_healthy
-    develop:
-      watch:
-        - action: sync
-          path: ./backend/src
-          target: /app/src
-          ignore:
-            - node_modules/
-        - action: rebuild
-          path: ./backend/package.json
-        - action: rebuild
-          path: ./backend/prisma
+      redis:
+        condition: service_started
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    command: sh -c "npx prisma migrate deploy && npm run dev"
+    networks:
+      - clubroom-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: clubroom-frontend
+    environment:
+      EXPO_PACKAGER_PROXY_URL: http://localhost:8081
+      REACT_NATIVE_PACKAGER_HOSTNAME: 0.0.0.0
+      API_URL: http://backend:5000/api
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "8081:8081"
+      - "19000:19000"
+      - "19001:19001"
+      - "19002:19002"
+    depends_on:
+      - backend
+    volumes:
+      - ./:/app
+      - /app/node_modules
+      - /app/.expo
+      - /app/backend
+    stdin_open: true
+    tty: true
+    command: npm run start
+    networks:
+      - clubroom-network
 
 volumes:
   postgres_data:
+  redis_data:
 
 networks:
-  default:
-    name: clubroom-network
+  clubroom-network:
+    driver: bridge

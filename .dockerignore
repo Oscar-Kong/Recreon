@@ -1,0 +1,16 @@
+node_modules
+npm-debug.log
+.expo
+.expo-shared
+.git
+.gitignore
+.env.local
+.env.*.local
+.vscode
+.idea
+*.log
+.DS_Store
+README.md
+docker-compose.yml
+Dockerfile
+.dockerignore

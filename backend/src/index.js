@@ -13,32 +13,94 @@ const server = http.createServer(app);
 // Initialize Socket.io
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:8081',
+    origin: function (origin, callback) {
+      // Allow requests with no origin (mobile apps, Postman, etc.)
+      if (!origin) return callback(null, true);
+      
+      // List of allowed origins
+      const allowedOrigins = [
+        'http://localhost:8081',
+        'http://localhost:19000',
+        'http://localhost:19001',
+        'http://localhost:19002',
+        'http://10.0.2.2:8081',
+        'http://10.0.2.2:19000',
+        'exp://192.168.0.79:8081', // Expo on physical device
+      ];
+      
+      // Allow any origin in development
+      if (process.env.NODE_ENV === 'development') {
+        return callback(null, true);
+      }
+      
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true
   }
 });
 
-// Middleware
+// Middleware - More permissive CORS for development
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:8081',
-  credentials: true
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps)
+    if (!origin) return callback(null, true);
+    
+    // In development, allow all origins
+    if (process.env.NODE_ENV === 'development') {
+      return callback(null, true);
+    }
+    
+    // In production, be more restrictive
+    const allowedOrigins = [
+      'http://localhost:8081',
+      'http://localhost:19000',
+      'http://10.0.2.2:8081',
+    ];
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
 app.use(express.json());
 
-// Health check endpoint - ADD THIS!
+// Request logging middleware (helpful for debugging)
+app.use((req, res, next) => {
+  console.log(`📥 ${req.method} ${req.path}`, {
+    origin: req.headers.origin,
+    userAgent: req.headers['user-agent']?.substring(0, 50) + '...',
+    body: req.body
+  });
+  next();
+});
+
+// Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    service: 'clubroom-backend'
+    service: 'clubroom-backend',
+    platform: req.headers['user-agent']?.includes('Android') ? 'Android' : 
+               req.headers['user-agent']?.includes('iPhone') ? 'iOS' : 'Unknown'
   });
 });
 
-// Test endpoint for debugging - ADD THIS TOO!
+// Test endpoint for debugging
 app.get('/api/test', (req, res) => {
   res.json({ 
     message: 'API is working!', 
-    timestamp: new Date().toISOString() 
+    timestamp: new Date().toISOString(),
+    headers: req.headers
   });
 });
 
@@ -70,7 +132,7 @@ io.use((socket, next) => {
 
 // Socket.io connection handling
 io.on('connection', (socket) => {
-  console.log(`User ${socket.userId} connected`);
+  console.log(`👤 User ${socket.userId} connected`);
 
   // Join user's personal room
   socket.join(`user_${socket.userId}`);
@@ -108,18 +170,21 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    console.log(`User ${socket.userId} disconnected`);
+    console.log(`👤 User ${socket.userId} disconnected`);
   });
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Something went wrong!' });
+  console.error('❌ Error:', err.stack);
+  res.status(500).json({ error: 'Something went wrong!', message: err.message });
 });
 
-// Start server
+// Start server - Listen on all network interfaces
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📱 For Android Emulator: http://10.0.2.2:${PORT}`);
+  console.log(`📱 For iOS Simulator: http://localhost:${PORT}`);
+  console.log(`💻 For Browser: http://localhost:${PORT}`);
 });
