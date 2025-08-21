@@ -3,29 +3,32 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
-// Determine the base URL based on the platform
+// STEP 1: Find your computer's IP address
+// Run this command in terminal: 
+// - Windows: ipconfig (look for IPv4 Address)
+// - Mac/Linux: ifconfig (look for inet under en0 or wlan0)
+// Replace YOUR_COMPUTER_IP with your actual IP address
+const YOUR_COMPUTER_IP = '192.168.0.79'; // ← Your actual IP from ifconfig en0
+
+// STEP 2: Determine the correct base URL
 const getAPIUrl = () => {
   if (__DEV__) {
-    // Development environment
-    if (Platform.OS === 'android') {
-      // Android Emulator must use 10.0.2.2 to access localhost
-      return 'http://10.0.2.2:5000/api';
-    } else if (Platform.OS === 'ios') {
-      // iOS Simulator can use localhost directly
-      return 'http://localhost:5000/api';
-    }
+    // Development environment - use your computer's IP address
+    // This works for both iOS Simulator and Android Emulator
+    return `http://${YOUR_COMPUTER_IP}:5000/api`;
   }
-  // Production URL (replace with your actual production URL when ready)
+  // Production URL
   return 'https://your-production-api.com/api';
 };
 
 const API_URL = getAPIUrl();
 
-// Log the URL being used (helpful for debugging)
+// Enhanced logging to help debug
 console.log('🔗 API Configuration:', {
+  environment: __DEV__ ? 'development' : 'production',
   platform: Platform.OS,
   url: API_URL,
-  environment: __DEV__ ? 'development' : 'production'
+  computerIP: YOUR_COMPUTER_IP
 });
 
 const api = axios.create({
@@ -33,6 +36,7 @@ const api = axios.create({
   timeout: 30000, // 30 second timeout
   headers: {
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
   },
 });
 
@@ -45,16 +49,21 @@ api.interceptors.request.use(
         config.headers.Authorization = `Bearer ${token}`;
       }
       
-      // Debug logging
+      // Enhanced debug logging
       console.log('📤 API Request:', {
-        url: `${config.baseURL}${config.url}`,
+        url: config.url,
         method: config.method?.toUpperCase(),
+        baseURL: config.baseURL,
+        fullURL: `${config.baseURL}${config.url}`,
         data: config.data,
-        headers: config.headers
+        headers: {
+          'Content-Type': config.headers['Content-Type'],
+          'Authorization': config.headers.Authorization ? '***TOKEN***' : 'None'
+        }
       });
       
     } catch (error) {
-      console.error('Error in request interceptor:', error);
+      console.error('❌ Request interceptor error:', error);
     }
     return config;
   },
@@ -67,37 +76,47 @@ api.interceptors.request.use(
 // Response interceptor for error handling and debugging
 api.interceptors.response.use(
   (response) => {
-    // Log successful responses
     console.log('✅ API Response:', {
       url: response.config.url,
       status: response.status,
-      data: response.data
+      statusText: response.statusText,
+      dataReceived: !!response.data
     });
     return response;
   },
   async (error) => {
-    // Check if it's a network error (no response from server)
+    // Enhanced network error detection
     if (!error.response) {
-      console.error('🔌 Network Error - Cannot connect to backend!');
+      console.error('🔌 NETWORK ERROR - Cannot connect to backend!');
       console.error('====================================');
       console.error('Backend URL:', API_URL);
       console.error('Platform:', Platform.OS);
+      console.error('Computer IP:', YOUR_COMPUTER_IP);
       console.error('');
-      console.error('Troubleshooting:');
-      console.error('1. Is backend running? (npm run dev in backend folder)');
-      console.error('2. Check the URL configuration:');
-      console.error('   - Android Emulator: Should use 10.0.2.2:5000');
-      console.error('   - iOS Simulator: Should use localhost:5000');
-      console.error('3. Check backend logs for any errors');
+      console.error('TROUBLESHOOTING STEPS:');
+      console.error('1. Is your backend running?');
+      console.error('   → Run: npm run dev (in backend folder)');
+      console.error('');
+      console.error('2. Check your computer\'s IP address:');
+      console.error('   → Windows: ipconfig');
+      console.error('   → Mac/Linux: ifconfig');
+      console.error('   → Update YOUR_COMPUTER_IP in api.js');
+      console.error('');
+      console.error('3. Test the connection:');
+      console.error(`   → Open browser: http://${YOUR_COMPUTER_IP}:5000/health`);
+      console.error('');
+      console.error('4. Check firewall settings');
+      console.error('   → Allow port 5000 through firewall');
       console.error('====================================');
       
-      // Return a more user-friendly error
+      // Return user-friendly error
       const networkError = new Error('Cannot connect to server. Please check your connection.');
       networkError.isNetworkError = true;
+      networkError.code = 'NETWORK_ERROR';
       return Promise.reject(networkError);
     }
     
-    // Log API errors with details
+    // Log API errors with full details
     console.error('❌ API Error Response:', {
       url: error.config?.url,
       method: error.config?.method,
@@ -107,14 +126,14 @@ api.interceptors.response.use(
       message: error.message
     });
     
-    // Handle 401 Unauthorized
+    // Handle 401 Unauthorized - clear auth data
     if (error.response?.status === 401) {
       console.log('🔒 Unauthorized - Clearing auth data');
       try {
         await AsyncStorage.removeItem('authToken');
         await AsyncStorage.removeItem('user');
       } catch (storageError) {
-        console.error('Error clearing auth data:', storageError);
+        console.error('❌ Error clearing auth data:', storageError);
       }
     }
     
