@@ -1,10 +1,10 @@
-# Frontend Dockerfile (Expo React Native)
+# Backend Dockerfile
 FROM node:18-alpine
 
 WORKDIR /app
 
 # Install system dependencies
-RUN apk add --no-cache python3 make g++ bash
+RUN apk add --no-cache python3 make g++ bash postgresql-client
 
 # Copy package files
 COPY package*.json ./
@@ -12,17 +12,27 @@ COPY package*.json ./
 # Install dependencies
 RUN npm install
 
-# Install Expo CLI globally
-RUN npm install -g expo-cli@latest
+# Copy Prisma schema
+COPY prisma ./prisma
 
-# Copy app files (excluding backend folder)
+# Generate Prisma client
+RUN npx prisma generate
+
+# Copy source code
 COPY . .
 
-# Create a startup script for Expo
+EXPOSE 5000
+
+# Create a startup script
 RUN echo '#!/bin/sh\n\
-    echo "Starting Expo development server..."\n\
-    expo start --tunnel' > /app/start.sh && chmod +x /app/start.sh
+    echo "Waiting for database..."\n\
+    while ! pg_isready -h database -p 5432 -U postgres; do\n\
+    sleep 1\n\
+    done\n\
+    echo "Database is ready!"\n\
+    echo "Running Prisma migrations..."\n\
+    npx prisma migrate deploy\n\
+    echo "Starting server..."\n\
+    npm run dev' > /app/start.sh && chmod +x /app/start.sh
 
-EXPOSE 8081 19000 19001 19002
-
-CMD ["npm", "run", "start"]
+CMD ["/app/start.sh"]
