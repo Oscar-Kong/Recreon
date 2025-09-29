@@ -20,8 +20,8 @@ COPY . .
 
 # Create a startup script for Expo
 RUN echo '#!/bin/sh\n\
-echo "Starting Expo development server..."\n\
-expo start --tunnel' > /app/start.sh && chmod +x /app/start.sh
+    echo "Starting Expo development server..."\n\
+    expo start --tunnel' > /app/start.sh && chmod +x /app/start.sh
 
 EXPOSE 8081 19000 19001 19002
 
