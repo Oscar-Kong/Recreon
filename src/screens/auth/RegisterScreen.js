@@ -136,78 +136,90 @@ export default function RegisterScreen({ navigation }) {
   };
 
   const renderStep1 = () => (
-    <>
-      <View style={styles.inputContainer}>
-        <Ionicons name="person-outline" size={20} color="#666" style={styles.inputIcon} />
-        <TextInput
-          style={styles.input}
-          placeholder="Username"
-          placeholderTextColor="#666"
-          value={formData.username}
-          onChangeText={(text) => updateFormData('username', text)}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-      </View>
+  <>
+    <View style={styles.inputContainer}>
+      <Ionicons name="person-outline" size={20} color="#666" style={styles.inputIcon} />
+      <TextInput
+        style={styles.input}
+        placeholder="Username"
+        placeholderTextColor="#666"
+        value={formData.username}
+        onChangeText={(text) => updateFormData('username', text)}
+        autoCapitalize="none"
+        autoCorrect={false}
+        autoComplete="username"  // Added: Helps with proper autofill
+      />
+    </View>
 
-      <View style={styles.inputContainer}>
-        <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          placeholderTextColor="#666"
-          value={formData.email}
-          onChangeText={(text) => updateFormData('email', text)}
-          autoCapitalize="none"
-          keyboardType="email-address"
-        />
-      </View>
+    <View style={styles.inputContainer}>
+      <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
+      <TextInput
+        style={styles.input}
+        placeholder="Email"
+        placeholderTextColor="#666"
+        value={formData.email}
+        onChangeText={(text) => updateFormData('email', text)}
+        autoCapitalize="none"
+        keyboardType="email-address"
+        autoComplete="email"  // Added: Helps with proper autofill
+      />
+    </View>
 
-      <View style={styles.inputContainer}>
-        <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          placeholderTextColor="#666"
-          value={formData.password}
-          onChangeText={(text) => updateFormData('password', text)}
-          secureTextEntry={!showPassword}
+    {/* PASSWORD FIELD - THE FIX */}
+    <View style={styles.inputContainer}>
+      <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
+      <TextInput
+        style={styles.input}
+        placeholder="Password"
+        placeholderTextColor="#666"
+        value={formData.password}
+        onChangeText={(text) => updateFormData('password', text)}
+        secureTextEntry={!showPassword}
+        autoComplete="password-new"  // ✅ CRITICAL FIX: Tells iOS this is a NEW password
+        textContentType="newPassword"  // ✅ iOS-specific: Prevents autofill overlay
+        autoCorrect={false}  // ✅ Disable autocorrect for passwords
+        autoCapitalize="none"  // ✅ Disable auto-capitalization
+      />
+      <TouchableOpacity
+        onPress={() => setShowPassword(!showPassword)}
+        style={styles.eyeIcon}
+      >
+        <Ionicons
+          name={showPassword ? 'eye-outline' : 'eye-off-outline'}
+          size={20}
+          color="#666"
         />
-        <TouchableOpacity
-          onPress={() => setShowPassword(!showPassword)}
-          style={styles.eyeIcon}
-        >
-          <Ionicons
-            name={showPassword ? 'eye-outline' : 'eye-off-outline'}
-            size={20}
-            color="#666"
-          />
-        </TouchableOpacity>
-      </View>
+      </TouchableOpacity>
+    </View>
 
-      <View style={styles.inputContainer}>
-        <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
-        <TextInput
-          style={styles.input}
-          placeholder="Confirm Password"
-          placeholderTextColor="#666"
-          value={formData.confirmPassword}
-          onChangeText={(text) => updateFormData('confirmPassword', text)}
-          secureTextEntry={!showConfirmPassword}
+    {/* CONFIRM PASSWORD FIELD - THE FIX */}
+    <View style={styles.inputContainer}>
+      <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
+      <TextInput
+        style={styles.input}
+        placeholder="Confirm Password"
+        placeholderTextColor="#666"
+        value={formData.confirmPassword}
+        onChangeText={(text) => updateFormData('confirmPassword', text)}
+        secureTextEntry={!showConfirmPassword}
+        autoComplete="password-new"  // ✅ CRITICAL FIX: Tells iOS this is a NEW password
+        textContentType="newPassword"  // ✅ iOS-specific: Prevents autofill overlay
+        autoCorrect={false}  // ✅ Disable autocorrect for passwords
+        autoCapitalize="none"  // ✅ Disable auto-capitalization
+      />
+      <TouchableOpacity
+        onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+        style={styles.eyeIcon}
+      >
+        <Ionicons
+          name={showConfirmPassword ? 'eye-outline' : 'eye-off-outline'}
+          size={20}
+          color="#666"
         />
-        <TouchableOpacity
-          onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-          style={styles.eyeIcon}
-        >
-          <Ionicons
-            name={showConfirmPassword ? 'eye-outline' : 'eye-off-outline'}
-            size={20}
-            color="#666"
-          />
-        </TouchableOpacity>
-      </View>
-    </>
-  );
+      </TouchableOpacity>
+    </View>
+  </>
+);
 
   const renderStep2 = () => (
     <>

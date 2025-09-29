@@ -9,7 +9,7 @@ const getLocalIPAddress = () => {
 
 export const API_CONFIG = {
   BASE_URL: __DEV__ 
-    ? `http://${getLocalIPAddress()}:5000/api`
+    ? `http://${getLocalIPAddress()}:5001/api`
     : 'https://your-production-api.com/api',
   
   SOCKET_URL: __DEV__
