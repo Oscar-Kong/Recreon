@@ -1,3 +1,4 @@
+// backend/src/controllers/authController.js
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -18,12 +19,10 @@ const generateToken = (userId, username) => {
 const register = async (req, res) => {
   console.log('📝 Register endpoint hit at:', new Date().toISOString());
   console.log('Request body received:', JSON.stringify(req.body, null, 2));
-  console.log('Request headers:', req.headers);
   
   try {
     // Check validation errors
     const errors = validationResult(req);
-    console.log('Validation result:', errors.array());
     
     if (!errors.isEmpty()) {
       console.log('❌ Validation failed:', errors.array());
@@ -31,39 +30,42 @@ const register = async (req, res) => {
     }
 
     const { username, email, password, fullName, city, state, country } = req.body;
-    console.log('Extracted data:', { 
-      username, 
-      email, 
-      fullName, 
-      city: city || 'not provided', 
-      state: state || 'not provided', 
-      country: country || 'not provided' 
-    });
+    console.log('Extracted data:', { username, email, fullName });
 
-    // Check if user exists
+    // ========================================
+    // FIX: Check if user exists with proper syntax
+    // ========================================
     console.log('Checking if user exists...');
-    const existingUser = await prisma.user.findFirst({
+    
+    // First check email
+    const existingEmail = await prisma.user.findUnique({
       where: {
-        OR: [
-          { email: email.toLowerCase() },
-          { username: username.toLowerCase() }
-        ]
+        email: email.toLowerCase()
       }
     });
 
-    if (existingUser) {
-      console.log('❌ User already exists:', {
-        username: existingUser.username,
-        email: existingUser.email
-      });
+    if (existingEmail) {
+      console.log('❌ Email already registered');
       return res.status(400).json({ 
-        error: existingUser.email === email.toLowerCase() 
-          ? 'Email already registered' 
-          : 'Username already taken' 
+        error: 'Email already registered' 
       });
     }
 
-    console.log('User does not exist, proceeding with registration...');
+    // Then check username
+    const existingUsername = await prisma.user.findUnique({
+      where: {
+        username: username.toLowerCase()
+      }
+    });
+
+    if (existingUsername) {
+      console.log('❌ Username already taken');
+      return res.status(400).json({ 
+        error: 'Username already taken' 
+      });
+    }
+
+    console.log('✅ User does not exist, proceeding with registration...');
     
     // Hash password
     console.log('Hashing password...');
@@ -74,7 +76,9 @@ const register = async (req, res) => {
     const avatarColor = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
     console.log('Generated avatar color:', avatarColor);
 
-    // Create user
+    // ========================================
+    // FIX: Create user with proper nested create
+    // ========================================
     console.log('Creating user in database...');
     const user = await prisma.user.create({
       data: {
@@ -86,8 +90,10 @@ const register = async (req, res) => {
         city: city || null,
         state: state || null,
         country: country || null,
+        // Create profile if it doesn't auto-create
         profile: {
           create: {
+            bio: null,
             preferredSports: []
           }
         }
@@ -130,18 +136,41 @@ const register = async (req, res) => {
     console.error('Error message:', error.message);
     console.error('Error stack:', error.stack);
     
-    // Check for specific Prisma errors
+    // ========================================
+    // BETTER ERROR HANDLING
+    // ========================================
+    
+    // Prisma unique constraint violation
     if (error.code === 'P2002') {
-      console.error('Unique constraint violation');
-      return res.status(400).json({ error: 'User already exists' });
+      console.error('Unique constraint violation on field:', error.meta?.target);
+      return res.status(400).json({ 
+        error: 'User with this email or username already exists' 
+      });
     }
     
+    // Prisma record not found
     if (error.code === 'P2025') {
       console.error('Record not found');
-      return res.status(404).json({ error: 'Related record not found' });
+      return res.status(404).json({ 
+        error: 'Related record not found' 
+      });
     }
-    
-    res.status(500).json({ error: 'Failed to register user', details: error.message });
+
+    // Prisma foreign key constraint
+    if (error.code === 'P2003') {
+      console.error('Foreign key constraint failed');
+      return res.status(400).json({ 
+        error: 'Invalid reference data' 
+      });
+    }
+
+    // Generic error with details for debugging
+    res.status(500).json({ 
+      error: 'Failed to register user', 
+      details: error.message,
+      // Only in development
+      ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
+    });
   }
 };
 
@@ -153,28 +182,21 @@ const login = async (req, res) => {
   try {
     const { username, password } = req.body;
 
-    // Find user by username or email
+    // ========================================
+    // FIX: Find user - try username first, then email
+    // ========================================
     console.log('Searching for user...');
-    const user = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { username: username.toLowerCase() },
-          { email: username.toLowerCase() }
-        ]
-      },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        passwordHash: true,
-        fullName: true,
-        avatarColor: true,
-        avatarUrl: true,
-        city: true,
-        state: true,
-        country: true
-      }
+    
+    let user = await prisma.user.findUnique({
+      where: { username: username.toLowerCase() }
     });
+
+    // If not found by username, try email
+    if (!user) {
+      user = await prisma.user.findUnique({
+        where: { email: username.toLowerCase() }
+      });
+    }
 
     if (!user) {
       console.log('❌ User not found:', username);
@@ -208,7 +230,10 @@ const login = async (req, res) => {
   } catch (error) {
     console.error('❌ Login error:', error);
     console.error('Error stack:', error.stack);
-    res.status(500).json({ error: 'Failed to login' });
+    res.status(500).json({ 
+      error: 'Failed to login',
+      details: error.message 
+    });
   }
 };
 
