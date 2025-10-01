@@ -1,5 +1,5 @@
 // backend/src/controllers/authController.js
-const prisma = require('../config/database'); // Import singleton
+const prisma = require('../config/database'); 
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');

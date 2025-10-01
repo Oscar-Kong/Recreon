@@ -130,10 +130,12 @@ app.get('/api/test', (req, res) => {
 const authRoutes = require('./routes/authRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
+const eventRoutes = require('./routes/eventRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/events', eventRoutes);
 
 // Socket.io authentication middleware
 const jwt = require('jsonwebtoken');

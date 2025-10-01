@@ -1,454 +1,589 @@
-// src/components/calendar/AddEventModal.js - OPTIMIZED VERSION
+// src/components/calendar/AddEventModal.js
 import { Ionicons } from '@expo/vector-icons';
-import { useRef, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  Animated,
-  Dimensions,
-  KeyboardAvoidingView,
+  Alert,
   Modal,
-  PanResponder,
-  Platform,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import api from '../../services/api';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const MODAL_HEIGHT = SCREEN_HEIGHT * 0.9;
-const CLOSE_THRESHOLD = 100; // Pixels to drag before closing
+/**
+ * ADD EVENT MODAL
+ * 
+ * This modal handles creating new events with all necessary fields.
+ * 
+ * Form State Management:
+ * - Each field has its own state
+ * - Validation happens on submit
+ * - Data is formatted before sending to backend
+ */
 
-const AddEventModal = ({ visible, onClose, onCreateEvent }) => {
-  const [eventName, setEventName] = useState('');
-  const [notes, setNotes] = useState('');
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [startTime, setStartTime] = useState('10:00');
-  const [endTime, setEndTime] = useState('11:00');
-  const [remindMe, setRemindMe] = useState(false);
-  const [selectedTags, setSelectedTags] = useState([]);
+const AddEventModal = ({ visible, onClose, onSubmit, selectedDate }) => {
+  // Form state
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [venue, setVenue] = useState('');
+  const [selectedSport, setSelectedSport] = useState(null);
+  const [eventType, setEventType] = useState('practice');
+  const [sports, setSports] = useState([]);
+  
+  // Date/time state
+  const [startDate, setStartDate] = useState(selectedDate || new Date());
+  const [startTime, setStartTime] = useState(new Date());
+  const [endTime, setEndTime] = useState(new Date(Date.now() + 3600000)); // +1 hour
+  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
+  
+  // Additional settings
+  const [maxParticipants, setMaxParticipants] = useState('');
+  const [enableReminder, setEnableReminder] = useState(true);
+  const [selectedTag, setSelectedTag] = useState(null);
 
-  // Animation values - optimized with useRef
-  const translateY = useRef(new Animated.Value(0)).current;
-  const gestureState = useRef({ isActive: false }).current;
+  // Event types for selection
+  const eventTypes = [
+    { id: 'practice', name: 'Practice', color: '#D97706' },
+    { id: 'tournament', name: 'Tournament', color: '#DC2626' },
+    { id: 'social', name: 'Social', color: '#059669' },
+    { id: 'league', name: 'League', color: '#2563EB' }
+  ];
 
-  // Memoized tags to prevent re-creation
-  const tags = useMemo(() => [
-    { id: 1, name: 'Tag', color: '#DC2626' },
-    { id: 2, name: 'Tag', color: '#D97706' },
-    { id: 3, name: 'Tag', color: '#059669' },
-  ], []);
+  /**
+   * Fetch available sports from backend when modal opens
+   */
+  useEffect(() => {
+    if (visible) {
+      fetchSports();
+      // Reset form when opening
+      resetForm();
+    }
+  }, [visible]);
 
-  // Optimized pan responder with performance improvements
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        // Only respond to vertical drags greater than 5px
-        return Math.abs(gestureState.dy) > 5 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
-      },
-      onPanResponderGrant: () => {
-        gestureState.isActive = true;
-        // Set initial value for smoother animation start
-        translateY.setOffset(translateY._value);
-        translateY.setValue(0);
-      },
-      onPanResponderMove: (_, gesture) => {
-        // Only allow downward dragging and limit the range
-        if (gesture.dy > 0 && gesture.dy < MODAL_HEIGHT * 0.5) {
-          // Use native driver compatible animation
-          translateY.setValue(gesture.dy);
-        }
-      },
-      onPanResponderRelease: (_, gesture) => {
-        gestureState.isActive = false;
-        translateY.flattenOffset();
+  /**
+   * Fetch sports from API
+   */
+  const fetchSports = async () => {
+    try {
+      const response = await api.get('/sports'); // You'll need to create this endpoint
+      setSports(response.data.sports);
+      
+      // Auto-select first sport if available
+      if (response.data.sports.length > 0 && !selectedSport) {
+        setSelectedSport(response.data.sports[0]);
+      }
+    } catch (error) {
+      console.error('Error fetching sports:', error);
+      // Use fallback sports if API fails
+      setSports([
+        { id: 1, displayName: 'Tennis', name: 'tennis' },
+        { id: 2, displayName: 'Basketball', name: 'basketball' },
+        { id: 3, displayName: 'Soccer', name: 'soccer' },
+        { id: 4, displayName: 'Badminton', name: 'badminton' }
+      ]);
+      setSelectedSport({ id: 1, displayName: 'Tennis', name: 'tennis' });
+    }
+  };
 
-        if (gesture.dy > CLOSE_THRESHOLD || gesture.vy > 0.5) {
-          // Close modal with faster animation
-          Animated.timing(translateY, {
-            toValue: MODAL_HEIGHT,
-            duration: 200,
-            useNativeDriver: true,
-          }).start(() => {
-            translateY.setValue(0);
-            onClose();
-          });
-        } else {
-          // Snap back with spring animation for better feel
-          Animated.spring(translateY, {
-            toValue: 0,
-            tension: 100,
-            friction: 8,
-            useNativeDriver: true,
-          }).start();
-        }
-      },
-      onPanResponderTerminate: () => {
-        gestureState.isActive = false;
-        translateY.flattenOffset();
-        // Snap back if gesture is terminated
-        Animated.spring(translateY, {
-          toValue: 0,
-          tension: 100,
-          friction: 8,
-          useNativeDriver: true,
-        }).start();
-      },
-    })
-  ).current;
+  /**
+   * Reset form to initial state
+   */
+  const resetForm = () => {
+    setTitle('');
+    setDescription('');
+    setVenue('');
+    setEventType('practice');
+    setStartDate(selectedDate || new Date());
+    setStartTime(new Date());
+    setEndTime(new Date(Date.now() + 3600000));
+    setMaxParticipants('');
+    setEnableReminder(true);
+    setSelectedTag(null);
+  };
 
-  // Memoized handlers to prevent re-creation
-  const toggleTag = useCallback((tagId) => {
-    setSelectedTags(prev => 
-      prev.includes(tagId) 
-        ? prev.filter(id => id !== tagId)
-        : [...prev, tagId]
-    );
-  }, []);
+  /**
+   * Combine date and time into single DateTime
+   */
+  const combineDateAndTime = (date, time) => {
+    const combined = new Date(date);
+    combined.setHours(time.getHours());
+    combined.setMinutes(time.getMinutes());
+    combined.setSeconds(0);
+    combined.setMilliseconds(0);
+    return combined;
+  };
 
-  const handleCreateEvent = useCallback(() => {
-    if (!eventName.trim()) {
+  /**
+   * Handle form submission
+   * Validates input and formats data for backend
+   */
+  const handleSubmit = async () => {
+    // Validation
+    if (!title.trim()) {
+      Alert.alert('Error', 'Please enter an event title');
       return;
     }
 
+    if (!selectedSport) {
+      Alert.alert('Error', 'Please select a sport');
+      return;
+    }
+
+    // Combine date and time
+    const startDateTime = combineDateAndTime(startDate, startTime);
+    const endDateTime = combineDateAndTime(startDate, endTime);
+
+    // Validate end time is after start time
+    if (endDateTime <= startDateTime) {
+      Alert.alert('Error', 'End time must be after start time');
+      return;
+    }
+
+    // Validate max participants is a number
+    if (maxParticipants && isNaN(parseInt(maxParticipants))) {
+      Alert.alert('Error', 'Max participants must be a number');
+      return;
+    }
+
+    // Build event data object
     const eventData = {
-      name: eventName,
-      notes,
-      date: selectedDate,
-      startTime,
-      endTime,
-      remindMe,
-      tags: selectedTags,
+      title: title.trim(),
+      description: description.trim(),
+      sportId: selectedSport.id,
+      eventType: eventType,
+      startTime: startDateTime.toISOString(),
+      endTime: endDateTime.toISOString(),
+      venue: venue.trim() || null,
+      maxParticipants: maxParticipants ? parseInt(maxParticipants) : null,
+      tags: selectedTag ? [{
+        name: selectedTag.name,
+        color: selectedTag.color
+      }] : []
     };
-    
-    onCreateEvent(eventData);
-    
-    // Reset form
-    setEventName('');
-    setNotes('');
-    setSelectedDate(new Date());
-    setStartTime('10:00');
-    setEndTime('11:00');
-    setRemindMe(false);
-    setSelectedTags([]);
-    
-    onClose();
-  }, [eventName, notes, selectedDate, startTime, endTime, remindMe, selectedTags, onCreateEvent, onClose]);
 
-  const resetAndClose = useCallback(() => {
-    Animated.timing(translateY, {
-      toValue: 0,
-      duration: 0,
-      useNativeDriver: true,
-    }).start(() => {
-      onClose();
+    // Call parent's onSubmit handler
+    await onSubmit(eventData);
+    
+    // Reset form after successful submission
+    resetForm();
+  };
+
+  /**
+   * Handle time picker change
+   */
+  const onStartTimeChange = (event, selected) => {
+    setShowStartTimePicker(false);
+    if (selected) {
+      setStartTime(selected);
+    }
+  };
+
+  const onEndTimeChange = (event, selected) => {
+    setShowEndTimePicker(false);
+    if (selected) {
+      setEndTime(selected);
+    }
+  };
+
+  /**
+   * Format time for display
+   */
+  const formatTime = (date) => {
+    return date.toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: true 
     });
-  }, [onClose, translateY]);
+  };
 
-  // Memoized styles for better performance
-  const animatedStyle = useMemo(() => ({
-    transform: [{ translateY }],
-  }), [translateY]);
+  /**
+   * Format date for display
+   */
+  const formatDate = (date) => {
+    return date.toLocaleDateString('en-US', { 
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
 
   return (
     <Modal
       visible={visible}
       animationType="slide"
-      transparent={true}
-      onRequestClose={resetAndClose}
-      statusBarTranslucent={true}
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
     >
-      <View style={styles.modalOverlay}>
-        <Animated.View 
-          style={[styles.modalContainer, animatedStyle]}
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onClose}>
+            <Text style={styles.cancelButton}>Cancel</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>New Event</Text>
+          <TouchableOpacity onPress={handleSubmit}>
+            <Text style={styles.createButton}>Create</Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView 
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
         >
-          <KeyboardAvoidingView 
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.keyboardView}
-          >
-            <View style={styles.modalContent}>
-              {/* Drag Handle - Only this area responds to pan gestures */}
-              <View {...panResponder.panHandlers} style={styles.dragHandleContainer}>
-                <View style={styles.dragHandle} />
-              </View>
+          {/* Event Title */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Event Title</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter event name"
+              placeholderTextColor="#666666"
+              value={title}
+              onChangeText={setTitle}
+              maxLength={200}
+            />
+          </View>
 
-              {/* Header */}
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Add New Event</Text>
-              </View>
-
-              {/* Optimized ScrollView with performance props */}
-              <ScrollView 
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.scrollContent}
-                keyboardShouldPersistTaps="handled"
-                scrollEventThrottle={16}
-                removeClippedSubviews={true}
-                maxToRenderPerBatch={10}
-                windowSize={10}
-              >
-                {/* Event Name Input */}
-                <TextInput
-                  style={styles.input}
-                  placeholder="Event name"
-                  placeholderTextColor="#666666"
-                  value={eventName}
-                  onChangeText={setEventName}
-                  maxLength={100}
-                />
-
-                {/* Notes Input */}
-                <TextInput
-                  style={[styles.input, styles.notesInput]}
-                  placeholder="Type note here..."
-                  placeholderTextColor="#666666"
-                  value={notes}
-                  onChangeText={setNotes}
-                  multiline
-                  numberOfLines={4}
-                  textAlignVertical="top"
-                  maxLength={500}
-                />
-
-                {/* Date Picker */}
-                <TouchableOpacity style={styles.dateTimeInput}>
-                  <Text style={styles.dateTimeText}>Date</Text>
-                  <View style={styles.dateTimeValue}>
-                    <Ionicons name="calendar-outline" size={20} color="#666666" />
-                  </View>
-                </TouchableOpacity>
-
-                {/* Time Pickers */}
-                <View style={styles.timeRow}>
-                  <TouchableOpacity style={[styles.timeInput, { marginRight: 10 }]}>
-                    <Text style={styles.timeLabel}>Start Time</Text>
-                    <View style={styles.timeValue}>
-                      <Ionicons name="time-outline" size={20} color="#666666" />
-                    </View>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={[styles.timeInput, { marginLeft: 10 }]}>
-                    <Text style={styles.timeLabel}>End Time</Text>
-                    <View style={styles.timeValue}>
-                      <Ionicons name="time-outline" size={20} color="#666666" />
-                    </View>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Remind Me Toggle */}
-                <View style={styles.remindRow}>
-                  <Text style={styles.remindText}>Remind me</Text>
-                  <Switch
-                    value={remindMe}
-                    onValueChange={setRemindMe}
-                    trackColor={{ false: '#333333', true: '#7B9F8C' }}
-                    thumbColor={remindMe ? '#FFFFFF' : '#666666'}
-                    ios_backgroundColor="#333333"
-                  />
-                </View>
-
-                {/* Tags */}
-                <View style={styles.tagsSection}>
-                  <Text style={styles.tagsTitle}>Tags</Text>
-                  <View style={styles.tagsRow}>
-                    {tags.map(tag => (
-                      <TouchableOpacity
-                        key={tag.id}
-                        style={[
-                          styles.tag,
-                          { borderColor: tag.color },
-                          selectedTags.includes(tag.id) && { backgroundColor: tag.color }
-                        ]}
-                        onPress={() => toggleTag(tag.id)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={[
-                          styles.tagText,
-                          selectedTags.includes(tag.id) && styles.tagTextActive
-                        ]}>
-                          {tag.name}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-
-                {/* Create Event Button */}
-                <TouchableOpacity 
-                  style={styles.createButton}
-                  onPress={handleCreateEvent}
-                  activeOpacity={0.8}
+          {/* Sport Selection */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Sport</Text>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              style={styles.sportScroll}
+            >
+              {sports.map((sport) => (
+                <TouchableOpacity
+                  key={sport.id}
+                  style={[
+                    styles.sportChip,
+                    selectedSport?.id === sport.id && styles.sportChipSelected
+                  ]}
+                  onPress={() => setSelectedSport(sport)}
                 >
-                  <Text style={styles.createButtonText}>Create Event</Text>
+                  <Text style={[
+                    styles.sportChipText,
+                    selectedSport?.id === sport.id && styles.sportChipTextSelected
+                  ]}>
+                    {sport.displayName}
+                  </Text>
                 </TouchableOpacity>
-              </ScrollView>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Event Type */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Event Type</Text>
+            <View style={styles.typeContainer}>
+              {eventTypes.map((type) => (
+                <TouchableOpacity
+                  key={type.id}
+                  style={[
+                    styles.typeChip,
+                    eventType === type.id && styles.typeChipSelected,
+                    eventType === type.id && { borderColor: type.color }
+                  ]}
+                  onPress={() => {
+                    setEventType(type.id);
+                    setSelectedTag({ name: type.name, color: type.color });
+                  }}
+                >
+                  <Text style={[
+                    styles.typeChipText,
+                    eventType === type.id && styles.typeChipTextSelected
+                  ]}>
+                    {type.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
-          </KeyboardAvoidingView>
-        </Animated.View>
+          </View>
+
+          {/* Date */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Date</Text>
+            <View style={styles.dateDisplay}>
+              <Ionicons name="calendar-outline" size={20} color="#7B9F8C" />
+              <Text style={styles.dateText}>{formatDate(startDate)}</Text>
+            </View>
+          </View>
+
+          {/* Time */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Time</Text>
+            <View style={styles.timeRow}>
+              {/* Start Time */}
+              <TouchableOpacity 
+                style={styles.timeInput}
+                onPress={() => setShowStartTimePicker(true)}
+              >
+                <Text style={styles.timeLabel}>Start</Text>
+                <View style={styles.timeValue}>
+                  <Text style={styles.timeText}>{formatTime(startTime)}</Text>
+                  <Ionicons name="chevron-down" size={20} color="#999999" />
+                </View>
+              </TouchableOpacity>
+
+              {/* End Time */}
+              <TouchableOpacity 
+                style={[styles.timeInput, styles.timeInputRight]}
+                onPress={() => setShowEndTimePicker(true)}
+              >
+                <Text style={styles.timeLabel}>End</Text>
+                <View style={styles.timeValue}>
+                  <Text style={styles.timeText}>{formatTime(endTime)}</Text>
+                  <Ionicons name="chevron-down" size={20} color="#999999" />
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            {/* Time Pickers */}
+            {showStartTimePicker && (
+              <DateTimePicker
+                value={startTime}
+                mode="time"
+                display="spinner"
+                onChange={onStartTimeChange}
+              />
+            )}
+            {showEndTimePicker && (
+              <DateTimePicker
+                value={endTime}
+                mode="time"
+                display="spinner"
+                onChange={onEndTimeChange}
+              />
+            )}
+          </View>
+
+          {/* Venue */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Venue (Optional)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter location"
+              placeholderTextColor="#666666"
+              value={venue}
+              onChangeText={setVenue}
+              maxLength={255}
+            />
+          </View>
+
+          {/* Max Participants */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Max Participants (Optional)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Leave empty for unlimited"
+              placeholderTextColor="#666666"
+              value={maxParticipants}
+              onChangeText={setMaxParticipants}
+              keyboardType="number-pad"
+              maxLength={3}
+            />
+          </View>
+
+          {/* Description */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Description (Optional)</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Add event details"
+              placeholderTextColor="#666666"
+              value={description}
+              onChangeText={setDescription}
+              multiline
+              numberOfLines={4}
+              maxLength={5000}
+            />
+          </View>
+
+          {/* Reminder Toggle */}
+          <View style={styles.section}>
+            <View style={styles.remindRow}>
+              <Text style={styles.remindText}>Remind me 1 hour before</Text>
+              <Switch
+                value={enableReminder}
+                onValueChange={setEnableReminder}
+                trackColor={{ false: '#333333', true: '#7B9F8C' }}
+                thumbColor={enableReminder ? '#FFFFFF' : '#666666'}
+              />
+            </View>
+          </View>
+
+          {/* Spacer for bottom padding */}
+          <View style={{ height: 40 }} />
+        </ScrollView>
       </View>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  modalOverlay: {
+  container: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContainer: {
-    backgroundColor: '#1A1A1A',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    height: MODAL_HEIGHT,
-    // Remove any shadow/elevation that might cause performance issues
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  modalContent: {
-    flex: 1,
-  },
-  dragHandleContainer: {
-    alignItems: 'center',
-    paddingVertical: 12,
-    // Increase touch area for better gesture handling
-    paddingHorizontal: 50,
-  },
-  dragHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: '#666666',
-    borderRadius: 2,
-  },
-  modalHeader: {
-    alignItems: 'center',
-    paddingBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
-    // Add grow property for better ScrollView performance
-    flexGrow: 1,
-  },
-  input: {
     backgroundColor: '#000000',
-    borderRadius: 20,
-    padding: 15,
-    color: '#FFFFFF',
-    fontSize: 16,
-    marginBottom: 15,
-    borderWidth: 1,
-    borderColor: '#333333',
   },
-  notesInput: {
-    height: 120,
-    paddingTop: 15,
-    textAlignVertical: 'top',
-  },
-  dateTimeInput: {
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#000000',
-    borderRadius: 20,
-    padding: 15,
-    marginBottom: 15,
-    borderWidth: 1,
-    borderColor: '#333333',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1A1A1A',
   },
-  dateTimeText: {
+  cancelButton: {
     color: '#999999',
     fontSize: 16,
   },
-  dateTimeValue: {
+  headerTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  createButton: {
+    color: '#7B9F8C',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  section: {
+    marginTop: 24,
+  },
+  sectionTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  input: {
+    backgroundColor: '#1A1A1A',
+    borderRadius: 12,
+    padding: 16,
+    color: '#FFFFFF',
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#333333',
+  },
+  textArea: {
+    height: 100,
+    textAlignVertical: 'top',
+  },
+  sportScroll: {
+    flexDirection: 'row',
+  },
+  sportChip: {
+    backgroundColor: '#1A1A1A',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginRight: 10,
+    borderWidth: 2,
+    borderColor: '#333333',
+  },
+  sportChipSelected: {
+    backgroundColor: '#7B9F8C',
+    borderColor: '#7B9F8C',
+  },
+  sportChipText: {
+    color: '#999999',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  sportChipTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  typeContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  typeChip: {
+    backgroundColor: '#1A1A1A',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#333333',
+  },
+  typeChipSelected: {
+    backgroundColor: '#1A1A1A',
+    borderWidth: 2,
+  },
+  typeChipText: {
+    color: '#999999',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  typeChipTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  dateDisplay: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#1A1A1A',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#333333',
+  },
+  dateText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    marginLeft: 12,
   },
   timeRow: {
     flexDirection: 'row',
-    marginBottom: 15,
+    gap: 10,
   },
   timeInput: {
     flex: 1,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#000000',
-    borderRadius: 20,
-    padding: 15,
+    backgroundColor: '#1A1A1A',
+    borderRadius: 12,
+    padding: 16,
     borderWidth: 1,
     borderColor: '#333333',
   },
+  timeInputRight: {
+    marginLeft: 0,
+  },
   timeLabel: {
     color: '#999999',
-    fontSize: 16,
+    fontSize: 14,
   },
   timeValue: {
     flexDirection: 'row',
     alignItems: 'center',
   },
+  timeText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    marginRight: 8,
+  },
   remindRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
     paddingVertical: 10,
   },
   remindText: {
     color: '#FFFFFF',
     fontSize: 16,
-  },
-  tagsSection: {
-    marginBottom: 30,
-  },
-  tagsTitle: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    marginBottom: 15,
-  },
-  tagsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  tag: {
-    paddingHorizontal: 25,
-    paddingVertical: 12,
-    borderRadius: 25,
-    borderWidth: 2,
-  },
-  tagText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-  },
-  tagTextActive: {
-    color: '#000000',
-    fontWeight: '500',
-  },
-  createButton: {
-    backgroundColor: '#7B9F8C',
-    borderRadius: 30,
-    padding: 18,
-    alignItems: 'center',
-    // Add shadow for better visual feedback
-    shadowColor: '#7B9F8C',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  createButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '600',
   },
 });
 
