@@ -1,17 +1,27 @@
-import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, TextInput, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
-const SearchBar = ({ placeholder, value, onChangeText }) => {
+const SearchBar = ({ placeholder = 'Search', value, onChangeText }) => {
   return (
     <View style={styles.container}>
-      <Ionicons name="search" size={20} color="#666666" />
+      <Ionicons name="search" size={20} color="#8E8E93" />
+      
       <TextInput
         style={styles.input}
         placeholder={placeholder}
-        placeholderTextColor="#666666"
         value={value}
         onChangeText={onChangeText}
+        autoCorrect={false}
       />
+      
+      {value?.length > 0 && (
+        <Ionicons 
+          name="close-circle" 
+          size={20}
+          color="#8E8E93"
+          onPress={() => onChangeText('')}
+        />
+      )}
     </View>
   );
 };
@@ -20,16 +30,16 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#4A5F52',
-    borderRadius: 25,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
+    backgroundColor: '#F2F2F7',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
   },
   input: {
     flex: 1,
-    marginLeft: 10,
-    color: '#FFFFFF',
     fontSize: 16,
+    color: '#000',
   },
 });
 

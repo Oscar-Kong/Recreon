@@ -1,3 +1,4 @@
+// src/components/calendar/CalendarView.js
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const CalendarView = ({ selectedDate, onDateSelect, events }) => {
@@ -7,7 +8,11 @@ const CalendarView = ({ selectedDate, onDateSelect, events }) => {
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
+    
+    // Get day of week (0-6, where 0 is Sunday)
+    // Convert to Monday-first (0-6, where 0 is Monday)
+    let startingDayOfWeek = firstDay.getDay() - 1;
+    if (startingDayOfWeek === -1) startingDayOfWeek = 6; // Sunday becomes 6
     
     const days = [];
     
@@ -23,7 +28,7 @@ const CalendarView = ({ selectedDate, onDateSelect, events }) => {
         date, 
         key: `day-${i}`,
         hasEvents: events.some(event => 
-          event.date.toDateString() === date.toDateString()
+          new Date(event.date).toDateString() === date.toDateString()
         )
       });
     }
@@ -50,7 +55,9 @@ const CalendarView = ({ selectedDate, onDateSelect, events }) => {
       {/* Week days header */}
       <View style={styles.weekDaysRow}>
         {weekDays.map((day) => (
-          <Text key={day} style={styles.weekDay}>{day}</Text>
+          <View key={day} style={styles.weekDayCell}>
+            <Text style={styles.weekDay}>{day}</Text>
+          </View>
         ))}
       </View>
 
@@ -59,31 +66,33 @@ const CalendarView = ({ selectedDate, onDateSelect, events }) => {
         {days.map(({ date, key, hasEvents }) => (
           <TouchableOpacity
             key={key}
-            style={[
-              styles.dayCell,
-              isSelected(date) && styles.selectedDay,
-              isToday(date) && styles.todayDay,
-            ]}
+            style={styles.dayCell}
             onPress={() => date && onDateSelect(date)}
             disabled={!date}
           >
-            {date && (
-              <>
-                <Text style={[
-                  styles.dayText,
-                  isSelected(date) && styles.selectedDayText,
-                  isToday(date) && styles.todayDayText,
-                ]}>
-                  {date.getDate()}
-                </Text>
-                {hasEvents && (
-                  <View style={styles.eventIndicatorContainer}>
-                    <View style={[styles.eventDot, { backgroundColor: '#DC2626' }]} />
-                    <View style={[styles.eventDot, { backgroundColor: '#059669' }]} />
-                  </View>
-                )}
-              </>
-            )}
+            <View style={[
+              styles.dayContent,
+              isSelected(date) && styles.selectedDay,
+              isToday(date) && styles.todayDay,
+            ]}>
+              {date && (
+                <>
+                  <Text style={[
+                    styles.dayText,
+                    isSelected(date) && styles.selectedDayText,
+                    isToday(date) && styles.todayDayText,
+                  ]}>
+                    {date.getDate()}
+                  </Text>
+                  {hasEvents && (
+                    <View style={styles.eventIndicatorContainer}>
+                      <View style={[styles.eventDot, { backgroundColor: '#DC2626' }]} />
+                      <View style={[styles.eventDot, { backgroundColor: '#059669' }]} />
+                    </View>
+                  )}
+                </>
+              )}
+            </View>
           </TouchableOpacity>
         ))}
       </View>
@@ -93,39 +102,44 @@ const CalendarView = ({ selectedDate, onDateSelect, events }) => {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 15,
-    paddingBottom: -5, // Add this to reduce bottom space
+    paddingHorizontal: 10,
+    paddingBottom: 10,
   },
   weekDaysRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     marginBottom: 10,
   },
+  weekDayCell: {
+    width: '14.28%',
+    alignItems: 'center',
+  },
   weekDay: {
     color: '#666666',
     fontSize: 14,
-    width: 40,
-    textAlign: 'center',
+    fontWeight: '500',
   },
   daysGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
   },
   dayCell: {
-    width: '14.28%',
+    width: '14.28%', // Exactly 1/7 of container width
     aspectRatio: 1,
+    padding: 2,
+  },
+  dayContent: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 5,
+    borderRadius: 20,
   },
   selectedDay: {
     backgroundColor: '#7B9F8C',
-    borderRadius: 20,
   },
   todayDay: {
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#7B9F8C',
-    borderRadius: 20,
   },
   dayText: {
     color: '#FFFFFF',
