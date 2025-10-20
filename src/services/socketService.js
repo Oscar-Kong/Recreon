@@ -80,44 +80,144 @@ class SocketService {
     }
   }
 
-  // ... rest of your existing socket methods
+  // ============================================
+  // CRITICAL: Event Listener Methods (on/off)
+  // ============================================
+  
+  /**
+   * Register an event listener
+   * This wraps socket.io's 'on' method
+   */
+  on(eventName, callback) {
+    if (!this.socket) {
+      console.warn(`Cannot listen to '${eventName}': Socket not connected`);
+      return;
+    }
+
+    // Store the callback for cleanup later
+    if (!this.listeners.has(eventName)) {
+      this.listeners.set(eventName, []);
+    }
+    this.listeners.get(eventName).push(callback);
+
+    // Register with socket.io
+    this.socket.on(eventName, callback);
+    console.log(`📡 Listening to event: ${eventName}`);
+  }
+
+  /**
+   * Unregister an event listener
+   * This wraps socket.io's 'off' method
+   */
+  off(eventName, callback) {
+    if (!this.socket) {
+      return;
+    }
+
+    // Remove from our listeners map
+    if (this.listeners.has(eventName)) {
+      const callbacks = this.listeners.get(eventName);
+      const index = callbacks.indexOf(callback);
+      if (index > -1) {
+        callbacks.splice(index, 1);
+      }
+      
+      // Clean up empty arrays
+      if (callbacks.length === 0) {
+        this.listeners.delete(eventName);
+      }
+    }
+
+    // Unregister from socket.io
+    this.socket.off(eventName, callback);
+    console.log(`📡 Stopped listening to event: ${eventName}`);
+  }
+
+  /**
+   * Emit an event (send data to server)
+   */
+  emit(eventName, data) {
+    if (!this.socket) {
+      console.warn(`Cannot emit '${eventName}': Socket not connected`);
+      return;
+    }
+    
+    this.socket.emit(eventName, data);
+  }
+
+  // ============================================
+  // Conversation Methods
+  // ============================================
+
   joinConversation(conversationId) {
-    if (this.socket) {
+    if (this.socket && this.isConnected) {
       this.socket.emit('join_conversation', conversationId);
+      console.log(`📥 Joined conversation: ${conversationId}`);
     }
   }
 
   leaveConversation(conversationId) {
-    if (this.socket) {
+    if (this.socket && this.isConnected) {
       this.socket.emit('leave_conversation', conversationId);
+      console.log(`📤 Left conversation: ${conversationId}`);
     }
   }
 
   sendMessage(data) {
-    if (this.socket) {
+    if (this.socket && this.isConnected) {
       this.socket.emit('send_message', data);
+      console.log(`📨 Sent message to conversation: ${data.conversationId}`);
     }
   }
 
-  startTyping(conversationId) {
-    if (this.socket) {
-      this.socket.emit('typing_start', { conversationId });
+  // ============================================
+  // Typing Indicators
+  // ============================================
+
+  startTyping(conversationId, userId) {
+    if (this.socket && this.isConnected) {
+      this.socket.emit('typing_start', { conversationId, userId });
     }
   }
 
-  stopTyping(conversationId) {
-    if (this.socket) {
-      this.socket.emit('typing_stop', { conversationId });
+  stopTyping(conversationId, userId) {
+    if (this.socket && this.isConnected) {
+      this.socket.emit('typing_stop', { conversationId, userId });
     }
   }
+
+  // ============================================
+  // Connection Management
+  // ============================================
 
   disconnect() {
     if (this.socket) {
+      // Clean up all listeners
+      this.listeners.forEach((callbacks, eventName) => {
+        callbacks.forEach(callback => {
+          this.socket.off(eventName, callback);
+        });
+      });
+      this.listeners.clear();
+
       this.socket.disconnect();
       this.socket = null;
       this.isConnected = false;
+      console.log('👋 Socket disconnected and cleaned up');
     }
+  }
+
+  /**
+   * Get connection status
+   */
+  getConnectionStatus() {
+    return {
+      isConnected: this.isConnected,
+      hasSocket: !!this.socket,
+      reconnectAttempts: this.reconnectAttempts
+    };
   }
 }
 
+// Export a singleton instance
 export const socketService = new SocketService();
