@@ -1,6 +1,6 @@
-// src/screens/ProfileScreen.js
+// src/screens/ProfileScreen.js - UPDATED WITH DATABASE INTEGRATION
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,53 +9,53 @@ import {
   ScrollView,
   Image,
   Alert,
-  Modal
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
+import { useAuth } from '../hooks/useAuth';
 
 const ProfileScreen = ({ navigation }) => {
-  const [user, setUser] = useState({
-    id: 1,
-    username: 'oscarkong',
-    fullName: 'Oscar Kong',
-    bio: 'Tennis enthusiast | Always up for a game 🎾',
-    location: 'New York, NY',
-    avatarColor: '#7B9F8C',
-    avatarUrl: null,
-    stats: {
-      totalMatches: 127,
-      wins: 85,
-      losses: 42,
-      winRate: 67,
-      globalRank: 1247,
-      cityRank: 23,
-    },
-    sports: [
-      { name: 'Tennis', skillLevel: 'ADVANCED', matches: 89, winRate: 72 },
-      { name: 'Basketball', skillLevel: 'INTERMEDIATE', matches: 34, winRate: 56 },
-      { name: 'Badminton', skillLevel: 'EXPERT', matches: 4, winRate: 75 },
-    ],
-    achievements: [
-      { id: 1, name: 'First Win', icon: 'trophy', color: '#D97706', unlocked: true },
-      { id: 2, name: '10 Win Streak', icon: 'flame', color: '#DC2626', unlocked: true },
-      { id: 3, name: '50 Matches', icon: 'star', color: '#7B9F8C', unlocked: true },
-      { id: 4, name: 'Top 100', icon: 'medal', color: '#666666', unlocked: false },
-    ],
-    recentMatches: [
-      { id: 1, opponent: 'Alex Chen', result: 'W', score: '6-4, 6-3', date: '2 days ago', sport: 'Tennis' },
-      { id: 2, opponent: 'Sarah Kim', result: 'L', score: '3-6, 6-7', date: '3 days ago', sport: 'Tennis' },
-      { id: 3, opponent: 'Mike Rodriguez', result: 'W', score: '6-2, 6-1', date: '5 days ago', sport: 'Tennis' },
-    ]
-  });
+  const { user: authUser, updateProfile } = useAuth();
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const [showShareModal, setShowShareModal] = useState(false);
+  // Fetch user data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchUserData();
+    }, [authUser])
+  );
+
+  const fetchUserData = async () => {
+    try {
+      setLoading(true);
+      
+      // Use the authenticated user data
+      if (authUser) {
+        setUser(authUser);
+      }
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      Alert.alert('Error', 'Failed to load profile data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchUserData();
+    setRefreshing(false);
+  };
 
   const handleEditProfile = () => {
-    // Navigate to edit profile screen
-    Alert.alert('Edit Profile', 'This will open edit profile screen');
+    Alert.alert('Coming Soon', 'Edit profile functionality will be available soon.');
   };
 
   const handleChangeAvatar = async () => {
@@ -74,18 +74,18 @@ const ProfileScreen = ({ navigation }) => {
     });
 
     if (!result.canceled) {
-      // Upload to Cloudinary and update user
-      setUser(prev => ({ ...prev, avatarUrl: result.assets[0].uri }));
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      try {
+        // TODO: Implement avatar upload to backend
+        Alert.alert('Coming Soon', 'Avatar upload will be available soon.');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch (error) {
+        Alert.alert('Error', 'Failed to upload avatar');
+      }
     }
   };
 
   const handleSettings = () => {
     navigation.navigate('Settings');
-  };
-
-  const handleShareAchievement = () => {
-    setShowShareModal(true);
   };
 
   const getSkillLevelColor = (level) => {
@@ -99,9 +99,51 @@ const ProfileScreen = ({ navigation }) => {
     return colors[level] || '#666666';
   };
 
+  if (loading && !user) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#7B9F8C" />
+          <Text style={styles.loadingText}>Loading profile...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={64} color="#666666" />
+          <Text style={styles.errorText}>Failed to load profile</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={fetchUserData}>
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Calculate stats from user data (if available from backend)
+  const stats = user.stats || {
+    totalMatches: 0,
+    wins: 0,
+    losses: 0,
+    winRate: 0,
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#7B9F8C"
+          />
+        }
+      >
         {/* Header with Settings */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Profile</Text>
@@ -114,10 +156,10 @@ const ProfileScreen = ({ navigation }) => {
         <View style={styles.profileCard}>
           <TouchableOpacity onPress={handleChangeAvatar} style={styles.avatarContainer}>
             {user.avatarUrl ? (
-              <Image source={{ uri: user.avatarUrl }} style={styles.avatar} />
+              <Image source={{ uri: user.avatarUrl }} style={styles.avatarImage} />
             ) : (
-              <View style={[styles.avatar, { backgroundColor: user.avatarColor }]}>
-                <Ionicons name="person" size={40} color="#000000" />
+              <View style={[styles.avatar, { backgroundColor: user.avatarColor || '#7B9F8C' }]}>
+                <Ionicons name="person-outline" size={50} color="#000000" />
               </View>
             )}
             <View style={styles.cameraIcon}>
@@ -125,213 +167,143 @@ const ProfileScreen = ({ navigation }) => {
             </View>
           </TouchableOpacity>
 
-          <Text style={styles.fullName}>{user.fullName}</Text>
+          <Text style={styles.fullName}>{user.fullName || 'User'}</Text>
           <Text style={styles.username}>@{user.username}</Text>
           
-          {user.bio && (
-            <Text style={styles.bio}>{user.bio}</Text>
+          {user.profile?.bio && (
+            <Text style={styles.bio}>{user.profile.bio}</Text>
           )}
 
-          <View style={styles.locationContainer}>
-            <Ionicons name="location" size={14} color="#666666" />
-            <Text style={styles.location}>{user.location}</Text>
-          </View>
+          {(user.city || user.state) && (
+            <View style={styles.locationContainer}>
+              <Ionicons name="location-outline" size={16} color="#666666" />
+              <Text style={styles.location}>
+                {[user.city, user.state].filter(Boolean).join(', ')}
+              </Text>
+            </View>
+          )}
 
           <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
             <Text style={styles.editButtonText}>Edit Profile</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Overall Stats */}
+        {/* Stats Card */}
         <View style={styles.statsContainer}>
           <LinearGradient
-            colors={['#7B9F8C', '#059669']}
+            colors={['#7B9F8C', '#5A7A6A']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.statsGradient}
           >
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{user.stats.totalMatches}</Text>
+              <Text style={styles.statValue}>{stats.totalMatches}</Text>
               <Text style={styles.statLabel}>Matches</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{user.stats.wins}</Text>
+              <Text style={styles.statValue}>{stats.wins}</Text>
               <Text style={styles.statLabel}>Wins</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{user.stats.winRate}%</Text>
+              <Text style={styles.statValue}>{stats.winRate}%</Text>
               <Text style={styles.statLabel}>Win Rate</Text>
             </View>
           </LinearGradient>
         </View>
 
-        {/* Rankings */}
+        {/* Rankings Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Rankings</Text>
-          <View style={styles.rankingsContainer}>
+          <View style={styles.rankingsRow}>
             <View style={styles.rankCard}>
-              <Ionicons name="globe-outline" size={24} color="#7B9F8C" />
-              <Text style={styles.rankValue}>#{user.stats.globalRank}</Text>
+              <Ionicons name="globe-outline" size={32} color="#7B9F8C" />
+              <Text style={styles.rankValue}>
+                #{user.profile?.globalRank || 'N/A'}
+              </Text>
               <Text style={styles.rankLabel}>Global</Text>
             </View>
             <View style={styles.rankCard}>
-              <Ionicons name="location-outline" size={24} color="#7B9F8C" />
-              <Text style={styles.rankValue}>#{user.stats.cityRank}</Text>
+              <Ionicons name="location-outline" size={32} color="#7B9F8C" />
+              <Text style={styles.rankValue}>
+                #{user.profile?.cityRank || 'N/A'}
+              </Text>
               <Text style={styles.rankLabel}>City</Text>
             </View>
           </View>
         </View>
 
-        {/* Sports & Skill Levels */}
+        {/* Sports Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Sports</Text>
-          {user.sports.map((sport, index) => (
-            <View key={index} style={styles.sportCard}>
-              <View style={styles.sportHeader}>
-                <Text style={styles.sportName}>{sport.name}</Text>
-                <View style={[
-                  styles.skillBadge,
-                  { backgroundColor: getSkillLevelColor(sport.skillLevel) }
-                ]}>
-                  <Text style={styles.skillBadgeText}>{sport.skillLevel}</Text>
+          {user.sportProfiles && user.sportProfiles.length > 0 ? (
+            user.sportProfiles.map((sportProfile) => (
+              <View key={sportProfile.id} style={styles.sportCard}>
+                <View style={styles.sportInfo}>
+                  <Ionicons name="tennisball-outline" size={24} color="#7B9F8C" />
+                  <View style={styles.sportDetails}>
+                    <Text style={styles.sportName}>{sportProfile.sport.name}</Text>
+                    <Text style={styles.sportStats}>
+                      {sportProfile.matchesPlayed || 0} matches • {sportProfile.winRate || 0}% win rate
+                    </Text>
+                  </View>
+                </View>
+                <View
+                  style={[
+                    styles.skillBadge,
+                    { backgroundColor: getSkillLevelColor(sportProfile.skillLevel) },
+                  ]}
+                >
+                  <Text style={styles.skillText}>{sportProfile.skillLevel}</Text>
                 </View>
               </View>
-              <View style={styles.sportStats}>
-                <View style={styles.sportStatItem}>
-                  <Text style={styles.sportStatValue}>{sport.matches}</Text>
-                  <Text style={styles.sportStatLabel}>Matches</Text>
-                </View>
-                <View style={styles.sportStatItem}>
-                  <Text style={styles.sportStatValue}>{sport.winRate}%</Text>
-                  <Text style={styles.sportStatLabel}>Win Rate</Text>
-                </View>
-                <View style={styles.sportStatItem}>
-                  <View style={styles.progressBarContainer}>
-                    <View 
-                      style={[
-                        styles.progressBar,
-                        { 
-                          width: `${sport.winRate}%`,
-                          backgroundColor: getSkillLevelColor(sport.skillLevel)
-                        }
-                      ]} 
-                    />
-                    </View>
-                </View>
-              </View>
+            ))
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>No sports added yet</Text>
+              <TouchableOpacity style={styles.addSportButton}>
+                <Ionicons name="add-circle-outline" size={24} color="#7B9F8C" />
+                <Text style={styles.addSportText}>Add Sport</Text>
+              </TouchableOpacity>
             </View>
-          ))}
+          )}
         </View>
 
-        {/* Achievements */}
+        {/* Achievements Section */}
         <View style={styles.section}>
-          <View style={styles.achievementHeader}>
+          <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Achievements</Text>
-            <TouchableOpacity onPress={handleShareAchievement}>
-              <Ionicons name="share-social-outline" size={20} color="#7B9F8C" />
+            <TouchableOpacity>
+              <Text style={styles.seeAll}>See all ›</Text>
             </TouchableOpacity>
           </View>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.achievementsScroll}
-          >
-            {user.achievements.map((achievement) => (
-              <View
-                key={achievement.id}
-                style={[
-                  styles.achievementCard,
-                  !achievement.unlocked && styles.achievementLocked
-                ]}
-              >
-                <View style={[
-                  styles.achievementIcon,
-                  { backgroundColor: achievement.unlocked ? achievement.color : '#333333' }
-                ]}>
-                  <Ionicons 
-                    name={achievement.icon} 
-                    size={28} 
-                    color={achievement.unlocked ? '#FFFFFF' : '#666666'} 
-                  />
-                </View>
-                <Text style={[
-                  styles.achievementName,
-                  !achievement.unlocked && styles.achievementNameLocked
-                ]}>
-                  {achievement.name}
-                </Text>
-                {!achievement.unlocked && (
-                  <Ionicons name="lock-closed" size={16} color="#666666" />
-                )}
+          
+          <View style={styles.achievementsGrid}>
+            {/* Placeholder achievements - will be replaced with real data */}
+            <View style={styles.achievementCard}>
+              <View style={[styles.achievementIcon, { backgroundColor: '#D97706' }]}>
+                <Ionicons name="trophy" size={24} color="#FFFFFF" />
               </View>
-            ))}
-          </ScrollView>
-        </View>
-
-        {/* Match History - Compact */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Matches</Text>
-          {user.recentMatches.map((match) => (
-            <View key={match.id} style={styles.matchHistoryItem}>
-              <View style={[
-                styles.resultBadge,
-                match.result === 'W' ? styles.winBadge : styles.lossBadge
-              ]}>
-                <Text style={styles.resultText}>{match.result}</Text>
-              </View>
-              <View style={styles.matchDetails}>
-                <Text style={styles.matchOpponent}>vs {match.opponent}</Text>
-                <Text style={styles.matchScore}>{match.score}</Text>
-              </View>
-              <Text style={styles.matchDate}>{match.date}</Text>
+              <Text style={styles.achievementName}>First Win</Text>
             </View>
-          ))}
-          <TouchableOpacity style={styles.viewAllButton}>
-            <Text style={styles.viewAllText}>View All Matches</Text>
-            <Ionicons name="chevron-forward" size={16} color="#7B9F8C" />
-          </TouchableOpacity>
+            
+            <View style={styles.achievementCard}>
+              <View style={[styles.achievementIcon, { backgroundColor: '#DC2626' }]}>
+                <Ionicons name="flame" size={24} color="#FFFFFF" />
+              </View>
+              <Text style={styles.achievementName}>Hot Streak</Text>
+            </View>
+            
+            <View style={styles.achievementCard}>
+              <View style={[styles.achievementIcon, { backgroundColor: '#666666' }]}>
+                <Ionicons name="star" size={24} color="#333333" />
+              </View>
+              <Text style={styles.achievementName}>Locked</Text>
+            </View>
+          </View>
         </View>
-
-        {/* Bottom Spacing */}
-        <View style={{ height: 40 }} />
       </ScrollView>
-
-      {/* Share Achievement Modal */}
-      <Modal
-        visible={showShareModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        transparent={true}
-        onRequestClose={() => setShowShareModal(false)}
-      >
-        <View style={styles.shareModalOverlay}>
-          <View style={styles.shareModalContent}>
-            <Text style={styles.shareModalTitle}>Share Achievement</Text>
-            <View style={styles.shareOptions}>
-              <TouchableOpacity style={styles.shareOption}>
-                <Ionicons name="logo-instagram" size={32} color="#E4405F" />
-                <Text style={styles.shareOptionText}>Instagram</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.shareOption}>
-                <Ionicons name="logo-twitter" size={32} color="#1DA1F2" />
-                <Text style={styles.shareOptionText}>Twitter</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.shareOption}>
-                <Ionicons name="copy-outline" size={32} color="#7B9F8C" />
-                <Text style={styles.shareOptionText}>Copy Link</Text>
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity 
-              style={styles.shareModalCancel}
-              onPress={() => setShowShareModal(false)}
-            >
-              <Text style={styles.shareModalCancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 };
@@ -340,6 +312,39 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000000',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    marginTop: 12,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  errorText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  retryButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: '#7B9F8C',
+    borderRadius: 8,
+  },
+  retryText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   header: {
     flexDirection: 'row',
@@ -372,6 +377,13 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#1A1A1A',
+  },
+  avatarImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     borderWidth: 3,
     borderColor: '#1A1A1A',
   },
@@ -452,27 +464,37 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: '#E8F5F0',
     fontWeight: '500',
   },
   statDivider: {
     width: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: '#FFFFFF33',
     marginHorizontal: 12,
   },
   section: {
     marginBottom: 24,
+    paddingHorizontal: 20,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '600',
     color: '#FFFFFF',
-    paddingHorizontal: 20,
     marginBottom: 16,
   },
-  rankingsContainer: {
+  seeAll: {
+    fontSize: 14,
+    color: '#7B9F8C',
+    fontWeight: '500',
+  },
+  rankingsRow: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
     gap: 12,
   },
   rankCard: {
@@ -486,7 +508,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    marginTop: 8,
+    marginTop: 12,
     marginBottom: 4,
   },
   rankLabel: {
@@ -494,83 +516,78 @@ const styles = StyleSheet.create({
     color: '#666666',
   },
   sportCard: {
-    backgroundColor: '#1A1A1A',
-    marginHorizontal: 20,
-    marginBottom: 12,
-    padding: 16,
-    borderRadius: 16,
-  },
-  sportHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#1A1A1A',
+    padding: 16,
+    borderRadius: 12,
     marginBottom: 12,
   },
-  sportName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  skillBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  skillBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  sportStats: {
+  sportInfo: {
     flexDirection: 'row',
-    gap: 20,
-  },
-  sportStatItem: {
+    alignItems: 'center',
     flex: 1,
   },
-  sportStatValue: {
+  sportDetails: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  sportName: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
-    marginBottom: 2,
+    marginBottom: 4,
   },
-  sportStatLabel: {
-    fontSize: 11,
+  sportStats: {
+    fontSize: 13,
     color: '#666666',
   },
-  progressBarContainer: {
-    height: 6,
-    backgroundColor: '#333333',
-    borderRadius: 3,
-    marginTop: 8,
-    overflow: 'hidden',
+  skillBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
   },
-  progressBar: {
-    height: '100%',
-    borderRadius: 3,
+  skillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
-  achievementHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  emptyState: {
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingVertical: 40,
+  },
+  emptyStateText: {
+    color: '#666666',
+    fontSize: 16,
     marginBottom: 16,
   },
-  achievementsScroll: {
-    paddingHorizontal: 20,
+  addSportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  addSportText: {
+    color: '#7B9F8C',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  achievementsGrid: {
+    flexDirection: 'row',
     gap: 12,
   },
   achievementCard: {
+    flex: 1,
+    backgroundColor: '#1A1A1A',
+    padding: 16,
+    borderRadius: 12,
     alignItems: 'center',
-    width: 100,
-  },
-  achievementLocked: {
-    opacity: 0.5,
   },
   achievementIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
@@ -579,112 +596,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#FFFFFF',
     textAlign: 'center',
-    marginBottom: 4,
-  },
-  achievementNameLocked: {
-    color: '#666666',
-  },
-  matchHistoryItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1A1A1A',
-    marginHorizontal: 20,
-    marginBottom: 8,
-    padding: 12,
-    borderRadius: 12,
-  },
-  resultBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  winBadge: {
-    backgroundColor: '#059669',
-  },
-  lossBadge: {
-    backgroundColor: '#DC2626',
-  },
-  resultText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  matchDetails: {
-    flex: 1,
-  },
-  matchOpponent: {
-    fontSize: 14,
-    color: '#FFFFFF',
     fontWeight: '500',
-    marginBottom: 2,
-  },
-  matchScore: {
-    fontSize: 12,
-    color: '#666666',
-  },
-  matchDate: {
-    fontSize: 11,
-    color: '#666666',
-  },
-  viewAllButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 20,
-    marginTop: 8,
-    paddingVertical: 12,
-    gap: 4,
-  },
-  viewAllText: {
-    color: '#7B9F8C',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  // Share Modal Styles
-  shareModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    justifyContent: 'flex-end',
-  },
-  shareModalContent: {
-    backgroundColor: '#1A1A1A',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-  },
-  shareModalTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  shareOptions: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 24,
-  },
-  shareOption: {
-    alignItems: 'center',
-    gap: 8,
-  },
-  shareOptionText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-  },
-  shareModalCancel: {
-    backgroundColor: '#000000',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  shareModalCancelText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
   },
 });
 

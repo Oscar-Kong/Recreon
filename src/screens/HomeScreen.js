@@ -1,7 +1,7 @@
-// src/screens/HomeScreen.js
+// src/screens/HomeScreen.js - UPDATED WITH DATABASE INTEGRATION
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -9,28 +9,34 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-// Import your SearchBar component
+import { useFocusEffect } from '@react-navigation/native';
 import SearchBar from '../components/common/SearchBar';
+import { useAuth } from '../hooks/useAuth';
+import api from '../services/api';
 
-// Keep the other inline components for now
-const RecentlyPlayedCard = ({ user }) => (
-  <TouchableOpacity style={styles.recentlyPlayedCard}>
-    <View style={[styles.avatar, { backgroundColor: user.color }]}>
+// Component for recently played user cards
+const RecentlyPlayedCard = ({ user, onPress }) => (
+  <TouchableOpacity style={styles.recentlyPlayedCard} onPress={onPress}>
+    <View style={[styles.avatar, { backgroundColor: user.avatarColor || '#7B9F8C' }]}>
       <Ionicons name="person-outline" size={30} color="#000000" />
     </View>
+    <Text style={styles.recentlyPlayedName} numberOfLines={1}>
+      {user.fullName || user.username}
+    </Text>
   </TouchableOpacity>
 );
 
-const GameCard = ({ game }) => (
-  <TouchableOpacity style={styles.gameCard}>
+// Component for game cards
+const GameCard = ({ game, onPress }) => (
+  <TouchableOpacity style={styles.gameCard} onPress={onPress}>
     <View style={styles.gameHeader}>
       <View>
         <Text style={styles.gameTitle}>{game.title}</Text>
-        <Text style={styles.gameType}>{game.type}</Text>
+        <Text style={styles.gameType}>{game.eventType || 'Match'}</Text>
       </View>
       {game.isFull && (
         <View style={styles.fullBadge}>
@@ -38,143 +44,189 @@ const GameCard = ({ game }) => (
         </View>
       )}
     </View>
+    
     <View style={styles.playersRow}>
-      {[...Array(game.maxPlayers)].map((_, i) => (
+      {[...Array(game.maxPlayers || 4)].map((_, i) => (
         <View 
           key={i}
           style={[
             styles.playerDot,
-            { backgroundColor: i < game.players.length ? '#FFFFFF' : '#333333' }
+            { backgroundColor: i < (game.currentPlayers || 0) ? '#FFFFFF' : '#333333' }
           ]}
         />
       ))}
     </View>
-    <Text style={styles.gameLocation}>{game.location}</Text>
-    <Text style={styles.gameRank}>Ranks: {game.rank}</Text>
+    
+    <View style={styles.gameInfo}>
+      <Ionicons name="location-outline" size={14} color="#666666" />
+      <Text style={styles.gameLocation}>{game.venue || 'Location TBD'}</Text>
+    </View>
+    
+    <View style={styles.gameInfo}>
+      <Ionicons name="time-outline" size={14} color="#666666" />
+      <Text style={styles.gameTime}>
+        {new Date(game.startTime).toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit'
+        })}
+      </Text>
+    </View>
   </TouchableOpacity>
 );
 
-const ArticleCard = ({ article }) => (
-  <TouchableOpacity style={styles.articleCard}>
+// Component for article/guide cards
+const ArticleCard = ({ article, onPress }) => (
+  <TouchableOpacity style={styles.articleCard} onPress={onPress}>
     <View>
       <Text style={styles.articleTitle}>{article.title}</Text>
-      <Text style={styles.articleInfo}>{article.sport} • {article.readTime} min</Text>
+      <Text style={styles.articleInfo}>
+        {article.sport} • {article.readTime || 5} min read
+      </Text>
     </View>
-    <View style={[styles.levelBadge, { backgroundColor: article.level === 'BEGINNER' ? '#059669' : '#D97706' }]}>
-      <Text style={styles.levelText}>{article.level}</Text>
+    <View style={[
+      styles.levelBadge, 
+      { backgroundColor: article.level === 'BEGINNER' ? '#7B9F8C' : '#D97706' }
+    ]}>
+      <Text style={styles.levelText}>{article.level || 'ALL'}</Text>
     </View>
   </TouchableOpacity>
 );
 
 const HomeScreen = ({ navigation }) => {
+  const { user } = useAuth();
   const [location, setLocation] = useState(null);
-  const [district, setDistrict] = useState('Loading...');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  
+  // State for real data
   const [recentlyPlayed, setRecentlyPlayed] = useState([]);
   const [games, setGames] = useState([]);
   const [articles, setArticles] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [hasNotifications, setHasNotifications] = useState(true);
 
+  // Fetch data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchAllData();
+    }, [])
+  );
+
+  // Request location permission and get current location
   useEffect(() => {
-    getLocationAndDistrict();
-    fetchHomeData();
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        try {
+          const currentLocation = await Location.getCurrentPositionAsync({});
+          setLocation(currentLocation);
+        } catch (error) {
+          console.error('Error getting location:', error);
+        }
+      }
+    })();
   }, []);
 
-  const getLocationAndDistrict = async () => {
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        setDistrict('Location access denied');
-        return;
-      }
-
-      const location = await Location.getCurrentPositionAsync({});
-      setLocation(location.coords);
-
-      const [address] = await Location.reverseGeocodeAsync({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      });
-
-      setDistrict(address.district || address.city || 'San Jose');
-    } catch (error) {
-      console.error('Location error:', error);
-      setDistrict('San Jose'); // Default
-    }
-  };
-
-  const fetchHomeData = async () => {
+  const fetchAllData = async () => {
     try {
       setLoading(true);
       
-      // Mock data - replace with API calls
-      setRecentlyPlayed([
-        { id: '1', name: 'Ryan Choi', color: '#FFFFFF' },
-        { id: '2', name: 'Ryan Choi', color: '#DC2626' },
-        { id: '3', name: 'Ryan Choi', color: '#D97706' },
-        { id: '4', name: 'Ryan Choi', color: '#059669' },
+      // Fetch data in parallel
+      await Promise.all([
+        fetchRecentlyPlayed(),
+        fetchGames(),
+        fetchArticles(),
       ]);
-
-      setGames([
-        {
-          id: '1',
-          title: 'Tennis',
-          type: 'Doubles',
-          players: [1, 2, 3, 4],
-          maxPlayers: 4,
-          location: '1234 Awesome Rd 09876',
-          rank: 'Intermediate',
-          isFull: true,
-        },
-        {
-          id: '2',
-          title: 'Tennis',
-          type: 'Singles',
-          players: [1],
-          maxPlayers: 2,
-          location: '1234 Awesome Rd 09876',
-          rank: 'Beginner',
-          isFull: false,
-        },
-      ]);
-
-      setArticles([
-        {
-          id: '1',
-          title: 'Overhead Guide',
-          sport: 'Tennis',
-          readTime: 4,
-          level: 'BEGINNER',
-        },
-        {
-          id: '2',
-          title: 'Serve Technique',
-          sport: 'Tennis',
-          readTime: 6,
-          level: 'INTERMEDIATE',
-        },
-      ]);
-
-      setHasNotifications(true);
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('Error fetching home data:', error);
+      Alert.alert('Error', 'Failed to load data. Pull down to refresh.');
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
 
-  const onRefresh = () => {
+  const fetchRecentlyPlayed = async () => {
+    try {
+      // TODO: Replace with actual API endpoint
+      // const response = await api.get('/users/recent-matches');
+      // setRecentlyPlayed(response.data.users || []);
+      
+      // For now, show empty state
+      setRecentlyPlayed([]);
+    } catch (error) {
+      console.error('Error fetching recently played:', error);
+      setRecentlyPlayed([]);
+    }
+  };
+
+  const fetchGames = async () => {
+    try {
+      // Fetch upcoming events/games from API
+      const response = await api.get('/events/discover', {
+        params: {
+          limit: 5,
+          // Add location params if available
+          ...(location && {
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+          }),
+        },
+      });
+      
+      setGames(response.data.events || []);
+    } catch (error) {
+      console.error('Error fetching games:', error);
+      // Show empty state instead of crashing
+      setGames([]);
+    }
+  };
+
+  const fetchArticles = async () => {
+    try {
+      // TODO: Replace with actual API endpoint when articles feature is implemented
+      // const response = await api.get('/articles/featured');
+      // setArticles(response.data.articles || []);
+      
+      // For now, show empty state or placeholder
+      setArticles([]);
+    } catch (error) {
+      console.error('Error fetching articles:', error);
+      setArticles([]);
+    }
+  };
+
+  const onRefresh = async () => {
     setRefreshing(true);
-    fetchHomeData();
+    await fetchAllData();
+    setRefreshing(false);
+  };
+
+  const handleGamePress = (game) => {
+    // Navigate to game details
+    Alert.alert('Game Details', `Selected: ${game.title}`);
+    // navigation.navigate('GameDetails', { gameId: game.id });
+  };
+
+  const handleArticlePress = (article) => {
+    // Navigate to article details
+    Alert.alert('Article', `Selected: ${article.title}`);
+    // navigation.navigate('Article', { articleId: article.id });
+  };
+
+  const handleUserPress = (userItem) => {
+    // Navigate to user profile
+    Alert.alert('User Profile', `Selected: ${userItem.fullName || userItem.username}`);
+    // navigation.navigate('UserProfile', { userId: userItem.id });
   };
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#7B9F8C" />
-      </View>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#7B9F8C" />
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -193,37 +245,41 @@ const HomeScreen = ({ navigation }) => {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.appName}>PlayNow</Text>
-          <TouchableOpacity style={styles.notificationButton}>
+          <TouchableOpacity>
             <Ionicons name="notifications-outline" size={24} color="#FFFFFF" />
-            {hasNotifications && <View style={styles.notificationDot} />}
           </TouchableOpacity>
         </View>
 
         {/* Search Bar */}
         <View style={styles.searchContainer}>
-          <SearchBar placeholder="Search" />
+          <SearchBar 
+            placeholder="Search sports, players, games..."
+            onChangeText={(text) => {
+              // TODO: Implement search functionality
+              console.log('Search:', text);
+            }}
+          />
         </View>
 
         {/* Recently Played Section */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recently Played</Text>
-            <TouchableOpacity>
-              <Text style={styles.seeAll}>See all ›</Text>
-            </TouchableOpacity>
-          </View>
+          <Text style={styles.sectionTitle}>Recently Played</Text>
           
           {recentlyPlayed.length > 0 ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.horizontalList}>
-                {recentlyPlayed.map((user) => (
-                  <RecentlyPlayedCard key={user.id} user={user} />
+                {recentlyPlayed.map((userItem) => (
+                  <RecentlyPlayedCard 
+                    key={userItem.id} 
+                    user={userItem}
+                    onPress={() => handleUserPress(userItem)}
+                  />
                 ))}
               </View>
             </ScrollView>
           ) : (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>Match with people!</Text>
+              <Text style={styles.emptyStateText}>Match with people to see them here!</Text>
             </View>
           )}
         </View>
@@ -232,7 +288,7 @@ const HomeScreen = ({ navigation }) => {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Discover Games</Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate('Play')}>
               <Text style={styles.seeAll}>See all ›</Text>
             </TouchableOpacity>
           </View>
@@ -240,32 +296,46 @@ const HomeScreen = ({ navigation }) => {
           {games.length > 0 ? (
             <View>
               {games.map((game) => (
-                <GameCard key={game.id} game={game} />
+                <GameCard 
+                  key={game.id} 
+                  game={game}
+                  onPress={() => handleGamePress(game)}
+                />
               ))}
             </View>
           ) : (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>Create a new game</Text>
-              <TouchableOpacity style={styles.addButton}>
+              <Text style={styles.emptyStateText}>No games available nearby</Text>
+              <TouchableOpacity 
+                style={styles.addButton}
+                onPress={() => navigation.navigate('Calendar')}
+              >
                 <Ionicons name="add" size={24} color="#7B9F8C" />
+                <Text style={styles.addButtonText}>Create Game</Text>
               </TouchableOpacity>
             </View>
           )}
         </View>
 
         {/* Blogs/Guides Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Blogs / Guides</Text>
-            <TouchableOpacity>
-              <Text style={styles.seeAll}>See all ›</Text>
-            </TouchableOpacity>
+        {articles.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Blogs / Guides</Text>
+              <TouchableOpacity>
+                <Text style={styles.seeAll}>See all ›</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {articles.map((article) => (
+              <ArticleCard 
+                key={article.id} 
+                article={article}
+                onPress={() => handleArticlePress(article)}
+              />
+            ))}
           </View>
-          
-          {articles.map((article) => (
-            <ArticleCard key={article.id} article={article} />
-          ))}
-        </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -280,7 +350,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#000000',
+  },
+  loadingText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    marginTop: 12,
   },
   header: {
     flexDirection: 'row',
@@ -295,60 +369,40 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  notificationButton: {
-    position: 'relative',
-  },
-  notificationDot: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#DC2626',
-  },
   searchContainer: {
     paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#4A5F52',
-    borderRadius: 25,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-  },
-  searchPlaceholder: {
-    color: '#999999',
-    marginLeft: 10,
-    fontSize: 16,
+    marginBottom: 24,
   },
   section: {
-    marginBottom: 30,
+    marginBottom: 32,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    marginBottom: 15,
+    marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '600',
     color: '#FFFFFF',
+    paddingHorizontal: 20,
+    marginBottom: 16,
   },
   seeAll: {
-    color: '#666666',
     fontSize: 14,
+    color: '#7B9F8C',
+    fontWeight: '500',
   },
   horizontalList: {
     flexDirection: 'row',
-    paddingLeft: 20,
+    paddingHorizontal: 20,
+    gap: 16,
   },
   recentlyPlayedCard: {
-    marginRight: 15,
+    alignItems: 'center',
+    width: 70,
   },
   avatar: {
     width: 60,
@@ -356,106 +410,124 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 8,
+  },
+  recentlyPlayedName: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 40,
+  },
+  emptyStateText: {
+    color: '#666666',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    gap: 8,
+  },
+  addButtonText: {
+    color: '#7B9F8C',
+    fontSize: 16,
+    fontWeight: '600',
   },
   gameCard: {
     backgroundColor: '#1A1A1A',
-    borderRadius: 12,
-    padding: 15,
     marginHorizontal: 20,
-    marginBottom: 10,
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 12,
   },
   gameHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    alignItems: 'flex-start',
+    marginBottom: 12,
   },
   gameTitle: {
-    color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 4,
   },
   gameType: {
-    color: '#666666',
-    fontSize: 14,
+    fontSize: 12,
+    color: '#7B9F8C',
+    textTransform: 'capitalize',
   },
   fullBadge: {
     backgroundColor: '#DC2626',
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 4,
+    borderRadius: 6,
   },
   fullText: {
+    fontSize: 10,
+    fontWeight: '700',
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
+    letterSpacing: 0.5,
   },
   playersRow: {
     flexDirection: 'row',
-    marginBottom: 10,
+    gap: 6,
+    marginBottom: 12,
   },
   playerDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    marginRight: 5,
+  },
+  gameInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
   },
   gameLocation: {
-    color: '#999999',
-    fontSize: 14,
-    marginBottom: 5,
-  },
-  gameRank: {
+    fontSize: 13,
     color: '#666666',
-    fontSize: 14,
+  },
+  gameTime: {
+    fontSize: 13,
+    color: '#666666',
   },
   articleCard: {
-    backgroundColor: '#1A1A1A',
-    borderRadius: 12,
-    padding: 15,
-    marginHorizontal: 20,
-    marginBottom: 10,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#1A1A1A',
+    marginHorizontal: 20,
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
   },
   articleTitle: {
-    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 5,
+    color: '#FFFFFF',
+    marginBottom: 6,
   },
   articleInfo: {
+    fontSize: 12,
     color: '#666666',
-    fontSize: 14,
   },
   levelBadge: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 8,
   },
   levelText: {
+    fontSize: 10,
+    fontWeight: '700',
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  emptyStateText: {
-    color: '#666666',
-    fontSize: 16,
-    marginBottom: 15,
-  },
-  addButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#1A1A1A',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#7B9F8C',
+    letterSpacing: 0.5,
   },
 });
 

@@ -1,4 +1,4 @@
-// src/navigation/TabNavigator.js
+// src/navigation/TabNavigator.js - UPDATED WITH SETTINGS SCREEN
 import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -8,6 +8,7 @@ import CalendarScreen from '../screens/CalendarScreen';
 import HomeScreen from '../screens/HomeScreen';
 import MessagesScreen from '../screens/MessagesScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import SettingsScreen from '../Settingsscreen';
 import PlayScreen from '../screens/PlayScreen';
 
 const Tab = createBottomTabNavigator();
@@ -36,6 +37,32 @@ const MessagesStack = () => {
         options={{
           headerShown: true,
         }}
+      />
+    </Stack.Navigator>
+  );
+};
+
+// Profile Stack - includes ProfileScreen and SettingsScreen
+const ProfileStack = () => {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: '#000000',
+        },
+        headerTintColor: '#FFFFFF',
+        headerShadowVisible: false,
+      }}
+    >
+      <Stack.Screen 
+        name="ProfileMain" 
+        component={ProfileScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen 
+        name="Settings" 
+        component={SettingsScreen}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );
@@ -80,7 +107,7 @@ const TabNavigator = () => {
       <Tab.Screen name="Messages" component={MessagesStack} />
       <Tab.Screen name="Play" component={PlayScreen} />
       <Tab.Screen name="Calendar" component={CalendarScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
+      <Tab.Screen name="Profile" component={ProfileStack} />
     </Tab.Navigator>
   );
 };
