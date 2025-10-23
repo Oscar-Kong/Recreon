@@ -1,6 +1,6 @@
 // src/components/calendar/AddEventModal.js
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Alert,
   Modal,
@@ -10,9 +10,10 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Platform
+  ActivityIndicator
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { sportsService } from '../../services/sportsService';
 
 const AddEventModal = ({ visible, onClose, onSubmit, selectedDate }) => {
   const [title, setTitle] = useState('');
@@ -23,10 +24,41 @@ const AddEventModal = ({ visible, onClose, onSubmit, selectedDate }) => {
   const [startTime, setStartTime] = useState(new Date(selectedDate.setHours(10, 0, 0, 0)));
   const [endTime, setEndTime] = useState(new Date(selectedDate.setHours(11, 0, 0, 0)));
   
+  // New state for sport selection
+  const [sports, setSports] = useState([]);
+  const [selectedSportId, setSelectedSportId] = useState(null);
+  const [loadingSports, setLoadingSports] = useState(true);
+  
   // State for showing/hiding pickers
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
+  const [showSportPicker, setShowSportPicker] = useState(false);
+
+  // Fetch sports list when modal opens
+  useEffect(() => {
+    if (visible) {
+      fetchSports();
+    }
+  }, [visible]);
+
+  const fetchSports = async () => {
+    try {
+      setLoadingSports(true);
+      const response = await sportsService.getAllSports();
+      setSports(response.sports || []);
+      
+      // Auto-select first sport if available
+      if (response.sports && response.sports.length > 0) {
+        setSelectedSportId(response.sports[0].id);
+      }
+    } catch (error) {
+      console.error('Error fetching sports:', error);
+      Alert.alert('Error', 'Failed to load sports list');
+    } finally {
+      setLoadingSports(false);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!title.trim()) {
@@ -34,10 +66,15 @@ const AddEventModal = ({ visible, onClose, onSubmit, selectedDate }) => {
       return;
     }
 
+    if (!selectedSportId) {
+      Alert.alert('Error', 'Please select a sport');
+      return;
+    }
+
     const eventData = {
       title: title.trim(),
       description: description.trim(),
-      sportId: 1, // Default to Tennis for now
+      sportId: selectedSportId,
       eventType: eventType,
       startTime: startTime.toISOString(),
       endTime: endTime.toISOString(),
@@ -47,15 +84,37 @@ const AddEventModal = ({ visible, onClose, onSubmit, selectedDate }) => {
     await onSubmit(eventData);
     
     // Reset form
+    resetForm();
+  };
+
+  const resetForm = () => {
     setTitle('');
     setDescription('');
     setVenue('');
     setEventType('practice');
+    setDate(new Date(selectedDate));
+    setStartTime(new Date(selectedDate.setHours(10, 0, 0, 0)));
+    setEndTime(new Date(selectedDate.setHours(11, 0, 0, 0)));
+    if (sports.length > 0) {
+      setSelectedSportId(sports[0].id);
+    }
   };
+
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+
+  const eventTypes = [
+    { value: 'practice', label: 'Practice', color: '#7B9F8C' },
+    { value: 'social', label: 'Social', color: '#3B82F6' },
+    { value: 'tournament', label: 'Tournament', color: '#DC2626' },
+    { value: 'league', label: 'League', color: '#D97706' },
+  ];
 
   const formatTime = (date) => {
     return date.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
+      hour: 'numeric', 
       minute: '2-digit',
       hour12: true 
     });
@@ -63,11 +122,15 @@ const AddEventModal = ({ visible, onClose, onSubmit, selectedDate }) => {
 
   const formatDate = (date) => {
     return date.toLocaleDateString('en-US', { 
-      weekday: 'short',
-      month: 'short', 
+      month: 'short',
       day: 'numeric',
       year: 'numeric'
     });
+  };
+
+  const getSelectedSportName = () => {
+    const sport = sports.find(s => s.id === selectedSportId);
+    return sport ? sport.displayName : 'Select Sport';
   };
 
   return (
@@ -75,50 +138,78 @@ const AddEventModal = ({ visible, onClose, onSubmit, selectedDate }) => {
       visible={visible}
       animationType="slide"
       presentationStyle="pageSheet"
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
       <View style={styles.container}>
+        {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={onClose}>
-            <Text style={styles.cancelButton}>Cancel</Text>
+          <TouchableOpacity onPress={handleClose}>
+            <Text style={styles.headerButton}>Cancel</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>New Event</Text>
           <TouchableOpacity onPress={handleSubmit}>
-            <Text style={styles.createButton}>Create</Text>
+            <Text style={[styles.headerButton, styles.createButton]}>Create</Text>
           </TouchableOpacity>
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {/* Event Title */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Event Title *</Text>
+            <Text style={styles.label}>Event Title <Text style={styles.required}>*</Text></Text>
             <TextInput
               style={styles.input}
               placeholder="Enter event name"
-              placeholderTextColor="#666666"
+              placeholderTextColor="#666"
               value={title}
               onChangeText={setTitle}
             />
           </View>
 
+          {/* Sport Picker */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Sport <Text style={styles.required}>*</Text></Text>
+            <TouchableOpacity 
+              style={styles.pickerButton}
+              onPress={() => setShowSportPicker(true)}
+              disabled={loadingSports}
+            >
+              <View style={styles.pickerContent}>
+                <Ionicons 
+                  name="basketball-outline" 
+                  size={20} 
+                  color="#7B9F8C" 
+                />
+                <Text style={styles.pickerText}>
+                  {loadingSports ? 'Loading...' : getSelectedSportName()}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#666" />
+            </TouchableOpacity>
+          </View>
+
           {/* Event Type */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Event Type</Text>
+            <Text style={styles.label}>Event Type</Text>
             <View style={styles.eventTypeContainer}>
-              {['practice', 'social', 'tournament', 'league'].map((type) => (
+              {eventTypes.map((type) => (
                 <TouchableOpacity
-                  key={type}
+                  key={type.value}
                   style={[
                     styles.eventTypeButton,
-                    eventType === type && styles.eventTypeButtonActive
+                    eventType === type.value && { 
+                      backgroundColor: type.color,
+                      borderColor: type.color 
+                    }
                   ]}
-                  onPress={() => setEventType(type)}
+                  onPress={() => setEventType(type.value)}
                 >
-                  <Text style={[
-                    styles.eventTypeText,
-                    eventType === type && styles.eventTypeTextActive
-                  ]}>
-                    {type.charAt(0).toUpperCase() + type.slice(1)}
+                  <Text
+                    style={[
+                      styles.eventTypeText,
+                      eventType === type.value && styles.eventTypeTextSelected
+                    ]}
+                  >
+                    {type.label}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -127,180 +218,164 @@ const AddEventModal = ({ visible, onClose, onSubmit, selectedDate }) => {
 
           {/* Date & Time */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Date & Time</Text>
+            <Text style={styles.label}>Date & Time</Text>
             
             {/* Date Picker */}
             <TouchableOpacity 
-              style={styles.dateTimeButton}
+              style={styles.pickerButton}
               onPress={() => setShowDatePicker(true)}
             >
-              <Ionicons name="calendar-outline" size={20} color="#7B9F8C" />
-              <Text style={styles.dateTimeButtonText}>{formatDate(date)}</Text>
-              <Ionicons name="chevron-forward" size={20} color="#666666" />
+              <View style={styles.pickerContent}>
+                <Ionicons name="calendar-outline" size={20} color="#7B9F8C" />
+                <Text style={styles.pickerText}>{formatDate(date)}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#666" />
             </TouchableOpacity>
 
-            {/* Start Time Picker */}
+            {/* Start Time */}
             <TouchableOpacity 
-              style={styles.dateTimeButton}
+              style={styles.pickerButton}
               onPress={() => setShowStartTimePicker(true)}
             >
-              <Text style={styles.dateTimeLabel}>Start Time</Text>
-              <Text style={styles.dateTimeButtonText}>{formatTime(startTime)}</Text>
-              <Ionicons name="chevron-forward" size={20} color="#666666" />
+              <View style={styles.pickerContent}>
+                <Text style={styles.timeLabel}>Start Time</Text>
+                <Text style={styles.pickerText}>{formatTime(startTime)}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#666" />
             </TouchableOpacity>
 
-            {/* End Time Picker */}
+            {/* End Time */}
             <TouchableOpacity 
-              style={styles.dateTimeButton}
+              style={styles.pickerButton}
               onPress={() => setShowEndTimePicker(true)}
             >
-              <Text style={styles.dateTimeLabel}>End Time</Text>
-              <Text style={styles.dateTimeButtonText}>{formatTime(endTime)}</Text>
-              <Ionicons name="chevron-forward" size={20} color="#666666" />
+              <View style={styles.pickerContent}>
+                <Text style={styles.timeLabel}>End Time</Text>
+                <Text style={styles.pickerText}>{formatTime(endTime)}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#666" />
             </TouchableOpacity>
           </View>
 
-          {/* Date Picker Modal */}
-          {showDatePicker && (
-            <Modal
-              transparent={true}
-              animationType="slide"
-              visible={showDatePicker}
-              onRequestClose={() => setShowDatePicker(false)}
-            >
-              <View style={styles.pickerModalContainer}>
-                <View style={styles.pickerModal}>
-                  <View style={styles.pickerHeader}>
-                    <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                      <Text style={styles.pickerDoneButton}>Done</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <DateTimePicker
-                    value={date}
-                    mode="date"
-                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                    onChange={(event, selectedDate) => {
-                      if (Platform.OS === 'android') {
-                        setShowDatePicker(false);
-                      }
-                      if (selectedDate) {
-                        setDate(selectedDate);
-                        // Update start and end times with new date
-                        const newStart = new Date(selectedDate);
-                        newStart.setHours(startTime.getHours(), startTime.getMinutes());
-                        setStartTime(newStart);
-                        
-                        const newEnd = new Date(selectedDate);
-                        newEnd.setHours(endTime.getHours(), endTime.getMinutes());
-                        setEndTime(newEnd);
-                      }
-                    }}
-                    textColor="#FFFFFF"
-                  />
-                </View>
-              </View>
-            </Modal>
-          )}
-
-          {/* Start Time Picker Modal */}
-          {showStartTimePicker && (
-            <Modal
-              transparent={true}
-              animationType="slide"
-              visible={showStartTimePicker}
-              onRequestClose={() => setShowStartTimePicker(false)}
-            >
-              <View style={styles.pickerModalContainer}>
-                <View style={styles.pickerModal}>
-                  <View style={styles.pickerHeader}>
-                    <TouchableOpacity onPress={() => setShowStartTimePicker(false)}>
-                      <Text style={styles.pickerDoneButton}>Done</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <DateTimePicker
-                    value={startTime}
-                    mode="time"
-                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                    onChange={(event, selectedTime) => {
-                      if (Platform.OS === 'android') {
-                        setShowStartTimePicker(false);
-                      }
-                      if (selectedTime) {
-                        setStartTime(selectedTime);
-                        // Auto-adjust end time to be 1 hour after start
-                        const newEnd = new Date(selectedTime);
-                        newEnd.setHours(newEnd.getHours() + 1);
-                        setEndTime(newEnd);
-                      }
-                    }}
-                    textColor="#FFFFFF"
-                  />
-                </View>
-              </View>
-            </Modal>
-          )}
-
-          {/* End Time Picker Modal */}
-          {showEndTimePicker && (
-            <Modal
-              transparent={true}
-              animationType="slide"
-              visible={showEndTimePicker}
-              onRequestClose={() => setShowEndTimePicker(false)}
-            >
-              <View style={styles.pickerModalContainer}>
-                <View style={styles.pickerModal}>
-                  <View style={styles.pickerHeader}>
-                    <TouchableOpacity onPress={() => setShowEndTimePicker(false)}>
-                      <Text style={styles.pickerDoneButton}>Done</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <DateTimePicker
-                    value={endTime}
-                    mode="time"
-                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                    minimumDate={startTime}
-                    onChange={(event, selectedTime) => {
-                      if (Platform.OS === 'android') {
-                        setShowEndTimePicker(false);
-                      }
-                      if (selectedTime) {
-                        setEndTime(selectedTime);
-                      }
-                    }}
-                    textColor="#FFFFFF"
-                  />
-                </View>
-              </View>
-            </Modal>
-          )}
-
           {/* Venue */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Venue (Optional)</Text>
+            <Text style={styles.label}>Venue (Optional)</Text>
             <TextInput
               style={styles.input}
               placeholder="Enter location"
-              placeholderTextColor="#666666"
+              placeholderTextColor="#666"
               value={venue}
               onChangeText={setVenue}
             />
           </View>
 
           {/* Description */}
-          <View style={[styles.section, { marginBottom: 40 }]}>
-            <Text style={styles.sectionTitle}>Description (Optional)</Text>
+          <View style={styles.section}>
+            <Text style={styles.label}>Description (Optional)</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
               placeholder="Add event details"
-              placeholderTextColor="#666666"
+              placeholderTextColor="#666"
               value={description}
               onChangeText={setDescription}
               multiline
               numberOfLines={4}
+              textAlignVertical="top"
             />
           </View>
         </ScrollView>
+
+        {/* Date Picker Modal */}
+        {showDatePicker && (
+          <DateTimePicker
+            value={date}
+            mode="date"
+            display="spinner"
+            onChange={(event, selectedDate) => {
+              setShowDatePicker(false);
+              if (selectedDate) {
+                setDate(selectedDate);
+              }
+            }}
+          />
+        )}
+
+        {/* Start Time Picker Modal */}
+        {showStartTimePicker && (
+          <DateTimePicker
+            value={startTime}
+            mode="time"
+            display="spinner"
+            onChange={(event, selectedTime) => {
+              setShowStartTimePicker(false);
+              if (selectedTime) {
+                setStartTime(selectedTime);
+              }
+            }}
+          />
+        )}
+
+        {/* End Time Picker Modal */}
+        {showEndTimePicker && (
+          <DateTimePicker
+            value={endTime}
+            mode="time"
+            display="spinner"
+            onChange={(event, selectedTime) => {
+              setShowEndTimePicker(false);
+              if (selectedTime) {
+                setEndTime(selectedTime);
+              }
+            }}
+          />
+        )}
+
+        {/* Sport Picker Modal */}
+        <Modal
+          visible={showSportPicker}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowSportPicker(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.sportPickerContainer}>
+              <View style={styles.sportPickerHeader}>
+                <Text style={styles.sportPickerTitle}>Select Sport</Text>
+                <TouchableOpacity onPress={() => setShowSportPicker(false)}>
+                  <Ionicons name="close" size={24} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+              
+              <ScrollView style={styles.sportList}>
+                {loadingSports ? (
+                  <ActivityIndicator size="large" color="#7B9F8C" style={{ marginTop: 20 }} />
+                ) : (
+                  sports.map((sport) => (
+                    <TouchableOpacity
+                      key={sport.id}
+                      style={[
+                        styles.sportItem,
+                        selectedSportId === sport.id && styles.sportItemSelected
+                      ]}
+                      onPress={() => {
+                        setSelectedSportId(sport.id);
+                        setShowSportPicker(false);
+                      }}
+                    >
+                      <View style={styles.sportItemContent}>
+                        <Text style={styles.sportIcon}>{sport.icon || '🏃'}</Text>
+                        <Text style={styles.sportName}>{sport.displayName}</Text>
+                      </View>
+                      {selectedSportId === sport.id && (
+                        <Ionicons name="checkmark" size={24} color="#7B9F8C" />
+                      )}
+                    </TouchableOpacity>
+                  ))
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
       </View>
     </Modal>
   );
@@ -320,18 +395,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#1A1A1A',
   },
-  cancelButton: {
-    color: '#999999',
-    fontSize: 16,
-  },
   headerTitle: {
-    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  headerButton: {
+    fontSize: 16,
+    color: '#666',
   },
   createButton: {
     color: '#7B9F8C',
-    fontSize: 16,
     fontWeight: '600',
   },
   content: {
@@ -341,24 +415,54 @@ const styles = StyleSheet.create({
   section: {
     marginTop: 24,
   },
-  sectionTitle: {
-    color: '#FFFFFF',
-    fontSize: 16,
+  label: {
+    fontSize: 14,
     fontWeight: '600',
-    marginBottom: 12,
+    color: '#FFFFFF',
+    marginBottom: 8,
+  },
+  required: {
+    color: '#DC2626',
   },
   input: {
     backgroundColor: '#1A1A1A',
     borderRadius: 12,
-    padding: 16,
-    color: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     fontSize: 16,
+    color: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#333333',
+    borderColor: '#2A2A2A',
   },
   textArea: {
     height: 100,
-    textAlignVertical: 'top',
+    paddingTop: 14,
+  },
+  pickerButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#1A1A1A',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+  },
+  pickerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  pickerText: {
+    fontSize: 16,
+    color: '#FFFFFF',
+  },
+  timeLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginRight: 12,
   },
   eventTypeContainer: {
     flexDirection: 'row',
@@ -371,65 +475,67 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#1A1A1A',
     borderWidth: 1,
-    borderColor: '#333333',
-  },
-  eventTypeButtonActive: {
-    backgroundColor: '#7B9F8C',
-    borderColor: '#7B9F8C',
+    borderColor: '#2A2A2A',
   },
   eventTypeText: {
-    color: '#666666',
     fontSize: 14,
+    color: '#FFFFFF',
     fontWeight: '500',
   },
-  eventTypeTextActive: {
-    color: '#FFFFFF',
+  eventTypeTextSelected: {
+    color: '#000000',
   },
-  dateTimeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1A1A1A',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#333333',
-  },
-  dateTimeLabel: {
-    color: '#FFFFFF',
-    fontSize: 16,
+  modalOverlay: {
     flex: 1,
-  },
-  dateTimeButtonText: {
-    color: '#7B9F8C',
-    fontSize: 16,
-    fontWeight: '500',
-    flex: 1,
-    marginLeft: 12,
-  },
-  // Picker Modal Styles
-  pickerModalContainer: {
-    flex: 1,
-    justifyContent: 'flex-end',
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
   },
-  pickerModal: {
-    backgroundColor: '#1A1A1A',
+  sportPickerContainer: {
+    backgroundColor: '#000000',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    paddingBottom: 40,
+    maxHeight: '70%',
   },
-  pickerHeader: {
+  sportPickerHeader: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    padding: 16,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#333333',
+    borderBottomColor: '#1A1A1A',
   },
-  pickerDoneButton: {
-    color: '#7B9F8C',
-    fontSize: 17,
+  sportPickerTitle: {
+    fontSize: 18,
     fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  sportList: {
+    flex: 1,
+  },
+  sportItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1A1A1A',
+  },
+  sportItemSelected: {
+    backgroundColor: '#1A1A1A',
+  },
+  sportItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  sportIcon: {
+    fontSize: 24,
+  },
+  sportName: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontWeight: '500',
   },
 });
 

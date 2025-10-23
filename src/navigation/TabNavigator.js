@@ -8,7 +8,7 @@ import CalendarScreen from '../screens/CalendarScreen';
 import HomeScreen from '../screens/HomeScreen';
 import MessagesScreen from '../screens/MessagesScreen';
 import ProfileScreen from '../screens/ProfileScreen';
-import SettingsScreen from '../SettingsScreen'; // ✅ FIXED: Correct import path
+import SettingsScreen from '../screens/SettingsScreen'; 
 import PlayScreen from '../screens/PlayScreen';
 
 const Tab = createBottomTabNavigator();

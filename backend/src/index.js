@@ -1,3 +1,4 @@
+// backend/src/index.js
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
@@ -6,7 +7,6 @@ const { Server } = require('socket.io');
 const path = require('path');
 
 // Load environment variables from backend/.env
-// The path needs to be explicit when running from backend/src/
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
 // CRITICAL: Set default NODE_ENV if not defined
@@ -32,15 +32,11 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 const io = new Server(server, {
   cors: {
     origin: function (origin, callback) {
-      // Allow requests with no origin (mobile apps, Postman, etc.)
       if (!origin) return callback(null, true);
-      
-      // In development, allow ALL origins
       if (isDevelopment) {
         return callback(null, true);
       }
       
-      // In production, use whitelist
       const allowedOrigins = [
         'http://localhost:8081',
         'http://localhost:19000',
@@ -63,15 +59,11 @@ const io = new Server(server, {
 // Middleware - CORS configuration for Express
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps)
     if (!origin) return callback(null, true);
-    
-    // In development, allow ALL origins
     if (isDevelopment) {
       return callback(null, true);
     }
     
-    // In production, be more restrictive
     const allowedOrigins = [
       'http://localhost:8081',
       'http://localhost:19000',
@@ -91,7 +83,7 @@ app.use(cors({
 
 app.use(express.json());
 
-// Request logging middleware (helpful for debugging)
+// Request logging middleware
 app.use((req, res, next) => {
   console.log(`📥 ${req.method} ${req.path}`, {
     origin: req.headers.origin,
@@ -103,17 +95,16 @@ app.use((req, res, next) => {
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.status(200).json({ 
+  res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    service: 'clubroom-backend',
     environment: process.env.NODE_ENV,
     platform: req.headers['user-agent']?.includes('Android') ? 'Android' : 
                req.headers['user-agent']?.includes('iPhone') ? 'iOS' : 'Unknown'
   });
 });
 
-// Test endpoint for debugging
+// Test endpoint
 app.get('/api/test', (req, res) => {
   res.json({ 
     message: 'API is working!', 
@@ -126,16 +117,20 @@ app.get('/api/test', (req, res) => {
   });
 });
 
-// Routes
+// ========================================
+// ROUTES
+// ========================================
 const authRoutes = require('./routes/authRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const eventRoutes = require('./routes/eventRoutes');
+const sportsRoutes = require('./routes/sportsRoutes'); // ✅ ADDED: Sports routes
 
 app.use('/api/auth', authRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/events', eventRoutes);
+app.use('/api/sports', sportsRoutes); // ✅ ADDED: Register sports routes
 
 // Socket.io authentication middleware
 const jwt = require('jsonwebtoken');
@@ -163,29 +158,23 @@ io.use((socket, next) => {
 io.on('connection', (socket) => {
   console.log(`👤 User ${socket.userId} connected (Socket ID: ${socket.id})`);
 
-  // Join user's personal room
   socket.join(`user_${socket.userId}`);
 
-  // Join conversation room
   socket.on('join_conversation', (conversationId) => {
     socket.join(`conversation_${conversationId}`);
     console.log(`📥 User ${socket.userId} joined conversation: ${conversationId}`);
   });
 
-  // Leave conversation room
   socket.on('leave_conversation', (conversationId) => {
     socket.leave(`conversation_${conversationId}`);
     console.log(`📤 User ${socket.userId} left conversation: ${conversationId}`);
   });
 
-  // Handle real-time messages
   socket.on('send_message', (data) => {
     console.log(`📨 Message sent in conversation ${data.conversationId}`);
-    // Emit to all users in the conversation
     io.to(`conversation_${data.conversationId}`).emit('new_message', data);
   });
 
-  // Typing indicators
   socket.on('typing_start', (data) => {
     socket.to(`conversation_${data.conversationId}`).emit('user_typing', {
       userId: socket.userId,
@@ -200,7 +189,6 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Handle disconnection
   socket.on('disconnect', () => {
     console.log(`👋 User ${socket.userId} disconnected`);
   });
@@ -210,7 +198,6 @@ io.on('connection', (socket) => {
 app.use((err, req, res, next) => {
   console.error('❌ Error:', err.stack);
   
-  // Don't expose internal errors in production
   const message = isDevelopment ? err.message : 'Something went wrong!';
   
   res.status(err.status || 500).json({ 
@@ -219,7 +206,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 404 handler for undefined routes
+// 404 handler
 app.use((req, res) => {
   console.log(`❓ 404 Not Found: ${req.method} ${req.path}`);
   res.status(404).json({ 
@@ -229,7 +216,7 @@ app.use((req, res) => {
   });
 });
 
-// Start server - Listen on all network interfaces
+// Start server
 const PORT = process.env.PORT || 5001;
 
 server.listen(PORT, '0.0.0.0', () => {
