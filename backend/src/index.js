@@ -124,13 +124,13 @@ const authRoutes = require('./routes/authRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const eventRoutes = require('./routes/eventRoutes');
-const sportsRoutes = require('./routes/sportsRoutes'); // ✅ ADDED: Sports routes
+const sportsRoutes = require('./routes/sportsRoutes'); 
 
 app.use('/api/auth', authRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/events', eventRoutes);
-app.use('/api/sports', sportsRoutes); // ✅ ADDED: Register sports routes
+app.use('/api/sports', sportsRoutes); 
 
 // Socket.io authentication middleware
 const jwt = require('jsonwebtoken');

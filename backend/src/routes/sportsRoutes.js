@@ -34,8 +34,8 @@ router.get('/', async (req, res) => {
         icon: true,
         maxPlayers: true,
         minPlayers: true,
-        isTeamSport: true,
-        requiresCourt: true
+        isTeamSport: true
+        // ❌ REMOVED: requiresCourt - this field doesn't exist in schema
       },
       orderBy: {
         displayName: 'asc'
@@ -133,7 +133,7 @@ router.get('/:sportId/popular', async (req, res) => {
     // Get sport with top players and upcoming events
     const [topPlayers, upcomingEvents] = await Promise.all([
       // Top players (users with profiles for this sport, ordered by match count)
-      prisma.sportProfile.findMany({
+      prisma.userSportProfile.findMany({
         where: { sportId: parseInt(sportId) },
         include: {
           user: {
@@ -146,17 +146,11 @@ router.get('/:sportId/popular', async (req, res) => {
               city: true,
               state: true
             }
-          },
-          _count: {
-            select: {
-              player1Matches: true,
-              player2Matches: true
-            }
           }
         },
         take: 10,
         orderBy: {
-          createdAt: 'desc' // You can change this to order by match count once you have that data
+          matchesPlayed: 'desc'
         }
       }),
 
@@ -167,7 +161,7 @@ router.get('/:sportId/popular', async (req, res) => {
           startTime: {
             gte: new Date()
           },
-          status: 'scheduled'
+          status: 'active'
         },
         include: {
           creator: {
