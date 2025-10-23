@@ -1,4 +1,4 @@
-// src/navigation/TabNavigator.js - UPDATED WITH SETTINGS SCREEN
+// src/navigation/TabNavigator.js - FIXED VERSION
 import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -8,7 +8,7 @@ import CalendarScreen from '../screens/CalendarScreen';
 import HomeScreen from '../screens/HomeScreen';
 import MessagesScreen from '../screens/MessagesScreen';
 import ProfileScreen from '../screens/ProfileScreen';
-import SettingsScreen from '../Settingsscreen';
+import SettingsScreen from '../SettingsScreen'; // ✅ FIXED: Correct import path
 import PlayScreen from '../screens/PlayScreen';
 
 const Tab = createBottomTabNavigator();

@@ -1,10 +1,14 @@
+// backend/src/controllers/conversationController.js
 const prisma = require('../config/database');
 
-// Get all conversations for a user
-const getConversations = async (req, res) => {
+/**
+ * GET /api/messages/conversations
+ * Get all conversations for the authenticated user
+ */
+exports.getConversations = async (req, res) => {
   try {
     const userId = req.userId;
-    
+
     const conversations = await prisma.conversation.findMany({
       where: {
         participants: {
@@ -28,10 +32,10 @@ const getConversations = async (req, res) => {
           }
         },
         messages: {
+          take: 1,
           orderBy: {
             createdAt: 'desc'
           },
-          take: 1,
           include: {
             sender: {
               select: {
@@ -48,8 +52,8 @@ const getConversations = async (req, res) => {
       }
     });
 
-    // Get unread counts
-    const conversationsWithUnread = await Promise.all(
+    // Transform conversations to include unread count and last message
+    const transformedConversations = await Promise.all(
       conversations.map(async (conv) => {
         const participant = conv.participants.find(p => p.userId === userId);
         
@@ -57,59 +61,60 @@ const getConversations = async (req, res) => {
         const unreadCount = await prisma.message.count({
           where: {
             conversationId: conv.id,
+            senderId: { not: userId },
             createdAt: {
-              gt: participant.lastReadAt || new Date(0)
+              gt: participant?.lastReadAt || new Date(0)
             },
-            senderId: {
-              not: userId
-            }
+            isDeleted: false
           }
         });
 
         return {
           ...conv,
+          lastMessage: conv.messages[0] || null,
+          messages: undefined, // Remove full messages array
           unreadCount,
-          isPinned: participant.isPinned,
-          lastMessage: conv.messages[0] || null
+          isPinned: participant?.isPinned || false
         };
       })
     );
 
-    res.json({
-      conversations: conversationsWithUnread,
-      total: conversationsWithUnread.length
-    });
-
+    res.json({ conversations: transformedConversations });
   } catch (error) {
     console.error('Error fetching conversations:', error);
-    res.status(500).json({ error: 'Failed to fetch conversations' });
+    res.status(500).json({ 
+      error: 'Failed to fetch conversations',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
-// Create a new conversation
-const createConversation = async (req, res) => {
+/**
+ * POST /api/messages/conversations
+ * Create a new conversation
+ */
+exports.createConversation = async (req, res) => {
   try {
-    const { participantIds, type = 'direct', context = 'general', title } = req.body;
+    const { participantIds, type = 'direct', context = 'general' } = req.body;
     const creatorId = req.userId;
 
-    // Ensure creator is included
-    if (!participantIds.includes(creatorId)) {
-      participantIds.push(creatorId);
+    // Validation
+    if (!participantIds || !Array.isArray(participantIds) || participantIds.length === 0) {
+      return res.status(400).json({ error: 'participantIds is required and must be a non-empty array' });
     }
 
     // For direct conversations, check if one already exists
-    if (type === 'direct' && participantIds.length === 2) {
+    if (type === 'direct' && participantIds.length === 1) {
       const existingConversation = await prisma.conversation.findFirst({
         where: {
           conversationType: 'direct',
-          context: context,
-          AND: participantIds.map(id => ({
-            participants: {
-              some: {
-                userId: id
+          participants: {
+            every: {
+              userId: {
+                in: [creatorId, participantIds[0]]
               }
             }
-          }))
+          }
         },
         include: {
           participants: {
@@ -119,7 +124,8 @@ const createConversation = async (req, res) => {
                   id: true,
                   username: true,
                   fullName: true,
-                  avatarColor: true
+                  avatarColor: true,
+                  avatarUrl: true
                 }
               }
             }
@@ -127,25 +133,22 @@ const createConversation = async (req, res) => {
         }
       });
 
-      if (existingConversation) {
+      if (existingConversation && existingConversation.participants.length === 2) {
         return res.json({ conversation: existingConversation });
       }
     }
 
-    // Generate avatar color for conversation
-    const avatarColor = '#' + Math.floor(Math.random()*16777215).toString(16);
-
     // Create new conversation
+    const allParticipants = [creatorId, ...participantIds];
+    
     const conversation = await prisma.conversation.create({
       data: {
         conversationType: type,
         context,
-        avatarColor,
-        title,
         participants: {
-          create: participantIds.map(userId => ({
+          create: allParticipants.map(userId => ({
             userId,
-            role: userId === creatorId ? 'admin' : 'member'
+            role: userId === creatorId ? 'creator' : 'member'
           }))
         }
       },
@@ -157,7 +160,8 @@ const createConversation = async (req, res) => {
                 id: true,
                 username: true,
                 fullName: true,
-                avatarColor: true
+                avatarColor: true,
+                avatarUrl: true
               }
             }
           }
@@ -166,19 +170,25 @@ const createConversation = async (req, res) => {
     });
 
     res.status(201).json({ conversation });
-
   } catch (error) {
     console.error('Error creating conversation:', error);
-    res.status(500).json({ error: 'Failed to create conversation' });
+    res.status(500).json({ 
+      error: 'Failed to create conversation',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
-// Toggle pin status
-const togglePin = async (req, res) => {
+/**
+ * PUT /api/messages/conversations/:conversationId/pin
+ * Toggle pin status for a conversation
+ */
+exports.togglePin = async (req, res) => {
   try {
     const { conversationId } = req.params;
     const userId = req.userId;
 
+    // Get current participant record
     const participant = await prisma.conversationParticipant.findUnique({
       where: {
         conversationId_userId: {
@@ -189,9 +199,10 @@ const togglePin = async (req, res) => {
     });
 
     if (!participant) {
-      return res.status(404).json({ error: 'Conversation not found' });
+      return res.status(404).json({ error: 'Conversation not found or you are not a participant' });
     }
 
+    // Toggle pin status
     const updated = await prisma.conversationParticipant.update({
       where: {
         conversationId_userId: {
@@ -204,16 +215,15 @@ const togglePin = async (req, res) => {
       }
     });
 
-    res.json({ isPinned: updated.isPinned });
-
+    res.json({ 
+      isPinned: updated.isPinned,
+      success: true
+    });
   } catch (error) {
     console.error('Error toggling pin:', error);
-    res.status(500).json({ error: 'Failed to update pin status' });
+    res.status(500).json({ 
+      error: 'Failed to toggle pin',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
-};
-
-module.exports = {
-  getConversations,
-  createConversation,
-  togglePin
 };
