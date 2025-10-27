@@ -330,6 +330,7 @@ const MessagesScreen = ({ navigation }) => {
           <PinnedConversations 
             conversations={pinnedConversations}
             onPress={handleConversationPress}
+            currentUserId={user?.id}
           />
         </View>
       )}
@@ -341,6 +342,7 @@ const MessagesScreen = ({ navigation }) => {
         renderItem={({ item }) => (
           <ConversationItems
             conversation={item}
+            currentUserId={user?.id}
             onPress={() => handleConversationPress(item)}
             onLongPress={() => handleTogglePin(item.id)}
           />

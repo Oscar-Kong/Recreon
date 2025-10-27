@@ -1,6 +1,6 @@
 // src/screens/PlayScreen.js
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -14,83 +14,201 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import { matchmakingService } from '../services/matchmakingService';
+import { sportsService } from '../services/sportsService';
 
 const PlayScreen = ({ navigation }) => {
   const [selectedMode, setSelectedMode] = useState('casual'); // 'casual' or 'ranked'
-  const [selectedSport, setSelectedSport] = useState('Tennis');
+  const [selectedSport, setSelectedSport] = useState(null);
+  const [selectedSportId, setSelectedSportId] = useState(null);
   const [skillLevel, setSkillLevel] = useState('INTERMEDIATE');
   const [distance, setDistance] = useState(5); // km
   const [showFilters, setShowFilters] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
-  const [matchSuggestions, setMatchSuggestions] = useState([
-    {
-      id: 1,
-      playerName: 'Alex Chen',
-      sport: 'Tennis',
-      skillLevel: 'INTERMEDIATE',
-      distance: '2.3 km',
-      winRate: 68,
-      matches: 45,
-      avatarColor: '#DC2626',
-      availability: 'Available now'
-    },
-    {
-      id: 2,
-      playerName: 'Sarah Kim',
-      sport: 'Tennis',
-      skillLevel: 'ADVANCED',
-      distance: '3.8 km',
-      winRate: 72,
-      matches: 89,
-      avatarColor: '#059669',
-      availability: 'Available in 1h'
-    },
-    {
-      id: 3,
-      playerName: 'Mike Rodriguez',
-      sport: 'Tennis',
-      skillLevel: 'INTERMEDIATE',
-      distance: '4.2 km',
-      winRate: 55,
-      matches: 23,
-      avatarColor: '#D97706',
-      availability: 'Available now'
-    },
-  ]);
-
-  const sports = [
-    { name: 'Tennis', icon: 'tennisball', color: '#7B9F8C' },
-    { name: 'Basketball', icon: 'basketball', color: '#DC2626' },
-    { name: 'Soccer', icon: 'football', color: '#059669' },
-    { name: 'Badminton', icon: 'tennisball', color: '#D97706' },
-    { name: 'Volleyball', icon: 'baseball', color: '#2563EB' },
-  ];
+  const [matchSuggestions, setMatchSuggestions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [sports, setSports] = useState([]);
 
   const skillLevels = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'EXPERT', 'PROFESSIONAL'];
   const distances = [1, 5, 10, 25, 50];
 
+  // Fetch sports list on component mount
+  useEffect(() => {
+    fetchSports();
+  }, []);
+
+  // Fetch match suggestions when sport or filters change
+  useEffect(() => {
+    if (selectedSportId) {
+      fetchMatchSuggestions();
+    }
+  }, [selectedSportId, skillLevel, distance]);
+
+  const fetchSports = async () => {
+    try {
+      const response = await sportsService.getAllSports();
+      const sportsData = response.sports || [];
+      
+      // Map sports to include icons and colors
+      const mappedSports = sportsData.map(sport => ({
+        id: sport.id,
+        name: sport.displayName || sport.name,
+        icon: getSportIcon(sport.name),
+        color: getSportColor(sport.name)
+      }));
+      
+      setSports(mappedSports);
+      
+      // Select first sport by default
+      if (mappedSports.length > 0) {
+        setSelectedSport(mappedSports[0].name);
+        setSelectedSportId(mappedSports[0].id);
+      }
+    } catch (error) {
+      console.error('Error fetching sports:', error);
+      Alert.alert('Error', 'Failed to load sports. Using defaults.');
+      
+      // Fallback to default sports
+      const defaultSports = [
+        { id: 1, name: 'Tennis', icon: 'tennisball', color: '#7B9F8C' },
+        { id: 2, name: 'Basketball', icon: 'basketball', color: '#DC2626' },
+        { id: 3, name: 'Soccer', icon: 'football', color: '#059669' },
+        { id: 4, name: 'Badminton', icon: 'tennisball', color: '#D97706' },
+        { id: 5, name: 'Volleyball', icon: 'baseball', color: '#2563EB' },
+      ];
+      setSports(defaultSports);
+      setSelectedSport(defaultSports[0].name);
+      setSelectedSportId(defaultSports[0].id);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchMatchSuggestions = async () => {
+    try {
+      const filters = {
+        sportId: selectedSportId,
+        mode: selectedMode,
+        skillLevel,
+        distance
+        // TODO: Add latitude/longitude when location services are implemented
+      };
+
+      const response = await matchmakingService.getMatchSuggestions(filters);
+      setMatchSuggestions(response.suggestions || []);
+    } catch (error) {
+      console.error('Error fetching match suggestions:', error);
+      // Keep existing suggestions or show empty state
+    }
+  };
+
   const handleQuickMatch = async () => {
+    if (!selectedSportId) {
+      Alert.alert('Error', 'Please select a sport first');
+      return;
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     setIsSearching(true);
 
-    // Simulate matchmaking
-    setTimeout(() => {
+    try {
+      // Refresh suggestions
+      await fetchMatchSuggestions();
+      
       setIsSearching(false);
-      Alert.alert(
-        'Match Found!',
-        `Found a ${selectedMode} match nearby`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Accept', onPress: () => console.log('Match accepted') }
-        ]
-      );
-    }, 2000);
+      
+      if (matchSuggestions.length > 0) {
+        Alert.alert(
+          'Match Found!',
+          `Found ${matchSuggestions.length} potential ${selectedMode} matches nearby`,
+          [
+            { text: 'View', onPress: () => console.log('View matches') },
+            { text: 'OK' }
+          ]
+        );
+      } else {
+        Alert.alert(
+          'No Matches Found',
+          'Try adjusting your filters or check back later',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      setIsSearching(false);
+      Alert.alert('Error', 'Failed to find matches. Please try again.');
+    }
   };
 
   const handleModeSwitch = (mode) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedMode(mode);
   };
+
+  const handleSendMatchRequest = async (match) => {
+    try {
+      // For now, we'll need a proposed time. In a real app, this would be a modal
+      const proposedTime = new Date();
+      proposedTime.setHours(proposedTime.getHours() + 24); // Tomorrow at same time
+
+      await matchmakingService.sendMatchRequest({
+        targetUserId: match.id,
+        sportId: selectedSportId,
+        proposedTime: proposedTime.toISOString()
+      });
+
+      Alert.alert(
+        'Success',
+        `Match request sent to ${match.playerName}!`,
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      Alert.alert(
+        'Error',
+        error.error || 'Failed to send match request',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
+  // Helper functions for sport icons and colors
+  const getSportIcon = (sportName) => {
+    const icons = {
+      'Tennis': 'tennisball',
+      'Basketball': 'basketball',
+      'Soccer': 'football',
+      'Football': 'football',
+      'Badminton': 'tennisball',
+      'Volleyball': 'baseball',
+      'Pickleball': 'tennisball',
+      'Squash': 'tennisball',
+    };
+    return icons[sportName] || 'football';
+  };
+
+  const getSportColor = (sportName) => {
+    const colors = {
+      'Tennis': '#7B9F8C',
+      'Basketball': '#DC2626',
+      'Soccer': '#059669',
+      'Football': '#059669',
+      'Badminton': '#D97706',
+      'Volleyball': '#2563EB',
+      'Pickleball': '#7B9F8C',
+      'Squash': '#D97706',
+    };
+    return colors[sportName] || '#7B9F8C';
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#7B9F8C" />
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -149,6 +267,7 @@ const PlayScreen = ({ navigation }) => {
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setSelectedSport(sport.name);
+                  setSelectedSportId(sport.id);
                 }}
               >
                 <Ionicons 
@@ -245,7 +364,7 @@ const PlayScreen = ({ navigation }) => {
                   `Send match request to ${match.playerName}?`,
                   [
                     { text: 'Cancel', style: 'cancel' },
-                    { text: 'Send Request', onPress: () => console.log('Request sent') }
+                    { text: 'Send Request', onPress: () => handleSendMatchRequest(match) }
                   ]
                 );
               }}
@@ -365,6 +484,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000000',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#FFFFFF',
+    marginTop: 12,
+    fontSize: 16,
   },
   header: {
     paddingHorizontal: 20,

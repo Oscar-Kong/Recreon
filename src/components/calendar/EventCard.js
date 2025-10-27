@@ -1,20 +1,105 @@
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { StyleSheet, Text, TouchableOpacity, View, Alert } from 'react-native';
 
-const EventCard = ({ event, onPress }) => {
+const EventCard = ({ event, onPress, onLongPress }) => {
+  const handleLongPress = () => {
+    if (onLongPress) {
+      onLongPress(event);
+    } else if (event.isCreator) {
+      // Show action menu for creator
+      Alert.alert(
+        event.name || event.title,
+        'Event Options',
+        [
+          { text: 'Edit Event', onPress: () => console.log('Edit event:', event.id) },
+          { text: 'Cancel Event', onPress: () => console.log('Cancel event:', event.id), style: 'destructive' },
+          { text: 'Close', style: 'cancel' }
+        ]
+      );
+    }
+  };
+
+  // Format participants display
+  const participantsText = event.maxParticipants 
+    ? `${event.participants || 0}/${event.maxParticipants}`
+    : `${event.participants || 0}`;
+
+  // Get event type badge color
+  const getTypeBadgeColor = (type) => {
+    const colors = {
+      'practice': '#D97706',
+      'social': '#059669',
+      'tournament': '#DC2626',
+      'league': '#2563EB',
+    };
+    return colors[type?.toLowerCase()] || '#666666';
+  };
+
   return (
-    <TouchableOpacity style={styles.container} onPress={onPress}>
-      <View style={[styles.colorIndicator, { backgroundColor: event.color }]} />
+    <TouchableOpacity 
+      style={styles.container} 
+      onPress={onPress}
+      onLongPress={handleLongPress}
+      delayLongPress={500}
+    >
+      <View style={[styles.colorIndicator, { backgroundColor: event.color || '#7B9F8C' }]} />
       <View style={styles.content}>
+        {/* Header: Time and Type */}
         <View style={styles.header}>
           <Text style={styles.time}>{event.time}</Text>
-          <Text style={styles.type}>| {event.type}</Text>
+          {event.eventType && (
+            <View style={[styles.typeBadge, { backgroundColor: getTypeBadgeColor(event.eventType) }]}>
+              <Text style={styles.typeBadgeText}>{event.eventType?.toUpperCase()}</Text>
+            </View>
+          )}
         </View>
-        <Text style={styles.title}>{event.name}</Text>
-        <Text style={styles.notes}>{event.notes}</Text>
+
+        {/* Event Title */}
+        <Text style={styles.title}>{event.name || event.title}</Text>
+
+        {/* Sport Name */}
+        {event.sport && (
+          <View style={styles.infoRow}>
+            <Ionicons name="tennisball-outline" size={14} color="#7B9F8C" />
+            <Text style={styles.infoText}>{event.sport}</Text>
+          </View>
+        )}
+
+        {/* Location/Venue */}
+        {(event.venue || event.location) && (
+          <View style={styles.infoRow}>
+            <Ionicons name="location-outline" size={14} color="#999999" />
+            <Text style={styles.locationText} numberOfLines={1}>
+              {event.venue || event.location}
+            </Text>
+          </View>
+        )}
+
+        {/* Participants Count */}
+        <View style={styles.infoRow}>
+          <Ionicons name="people-outline" size={14} color="#999999" />
+          <Text style={styles.participantsText}>{participantsText} players</Text>
+        </View>
+
+        {/* Skill Level Range (if available) */}
+        {event.skillLevelRange && typeof event.skillLevelRange === 'string' && (
+          <View style={styles.infoRow}>
+            <Ionicons name="bar-chart-outline" size={14} color="#999999" />
+            <Text style={styles.infoText}>{event.skillLevelRange}</Text>
+          </View>
+        )}
       </View>
-      <TouchableOpacity style={styles.moreButton}>
-        <Text style={styles.moreButtonText}>•••</Text>
-      </TouchableOpacity>
+
+      {/* Creator Badge or More Button */}
+      {event.isCreator ? (
+        <View style={styles.creatorBadge}>
+          <Ionicons name="star" size={16} color="#D97706" />
+        </View>
+      ) : (
+        <TouchableOpacity style={styles.moreButton} onPress={handleLongPress}>
+          <Ionicons name="ellipsis-vertical" size={20} color="#666666" />
+        </TouchableOpacity>
+      )}
     </TouchableOpacity>
   );
 };
@@ -26,11 +111,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 15,
     marginBottom: 10,
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   colorIndicator: {
     width: 4,
-    height: '100%',
+    alignSelf: 'stretch',
     borderRadius: 2,
     marginRight: 12,
   },
@@ -40,35 +125,58 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 5,
+    marginBottom: 6,
+    gap: 8,
   },
   time: {
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '500',
   },
-  type: {
-    color: '#666666',
-    fontSize: 14,
-    marginLeft: 5,
+  typeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  typeBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   title: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 5,
+    marginBottom: 8,
   },
-  notes: {
-    color: '#666666',
-    fontSize: 14,
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+    gap: 6,
+  },
+  infoText: {
+    color: '#7B9F8C',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  locationText: {
+    color: '#999999',
+    fontSize: 13,
+    flex: 1,
+  },
+  participantsText: {
+    color: '#999999',
+    fontSize: 13,
   },
   moreButton: {
     padding: 5,
+    marginLeft: 8,
   },
-  moreButtonText: {
-    color: '#666666',
-    fontSize: 18,
-    letterSpacing: 2,
+  creatorBadge: {
+    padding: 5,
+    marginLeft: 8,
   },
 });
 
