@@ -55,12 +55,19 @@ const CalendarScreen = ({ navigation }) => {
    * 
    * useEffect Hook Pattern:
    * - Runs after component renders
-   * - Dependencies array [selectedDate, activeTab] means it re-runs when these change
-   * - This keeps data synchronized with user selections
+   * - For "My Events": fetches all future events (not date-specific)
+   * - For "Find Events": fetches events for selected date
    */
   useEffect(() => {
     fetchEvents();
-  }, [selectedDate, activeTab]);
+  }, [activeTab]); // Only refetch when switching tabs
+  
+  // Separate effect for Find Events to refetch when date changes
+  useEffect(() => {
+    if (activeTab === 'findEvents') {
+      fetchEvents();
+    }
+  }, [selectedDate]);
 
   /**
    * Fetch events from backend based on current tab
@@ -75,17 +82,18 @@ const CalendarScreen = ({ navigation }) => {
       setLoading(true);
       setError(null);
 
-      // Prepare query parameters
-      const params = {
-        date: selectedDate.toISOString(),
-      };
-
       if (activeTab === 'myEvents') {
-        // Fetch user's own events
+        // Fetch all user's future events (not filtered by specific date)
+        const params = {
+          startDate: new Date().toISOString(), // From now onwards
+        };
         const fetchedEvents = await eventService.getMyEvents(params);
         setEvents(fetchedEvents);
       } else {
-        // Fetch discoverable public events
+        // For discover events, show events for the selected date
+        const params = {
+          date: selectedDate.toISOString(),
+        };
         const fetchedEvents = await eventService.getDiscoverEvents(params);
         setFindEvents(fetchedEvents);
       }
@@ -186,7 +194,7 @@ const CalendarScreen = ({ navigation }) => {
       // Show confirmation dialog
       Alert.alert(
         'Join Event',
-        `Do you want to join "${event.name}"?`,
+        `Do you want to join "${event.title || event.name}"?`,
         [
           { text: 'Cancel', style: 'cancel' },
           { 
@@ -240,63 +248,78 @@ const CalendarScreen = ({ navigation }) => {
    * Render event card for "Find Events" tab
    * Different UI for discoverable events with join button
    */
-  const renderFindEvent = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.findEventCard} 
-      onPress={() => handleEventPress(item)}
-    >
-      {/* Color indicator bar */}
-      <View style={[styles.eventColorBar, { backgroundColor: item.color }]} />
-      
-      {/* Event information */}
-      <View style={styles.findEventContent}>
-        <View style={styles.findEventHeader}>
-          <Text style={styles.findEventTime}>{item.time}</Text>
-          <Text style={styles.findEventType}>| {item.type}</Text>
+  const renderFindEvent = ({ item }) => {
+    const isFull = item.maxParticipants && item.participants >= item.maxParticipants;
+    
+    return (
+      <TouchableOpacity 
+        style={styles.findEventCard} 
+        onPress={() => handleEventPress(item)}
+      >
+        {/* Color indicator bar */}
+        <View style={[styles.eventColorBar, { backgroundColor: item.color || '#7B9F8C' }]} />
+        
+        {/* Event information */}
+        <View style={styles.findEventContent}>
+          <View style={styles.findEventHeader}>
+            <Text style={styles.findEventTime}>{item.time}</Text>
+            <Text style={styles.findEventType}>| {item.eventType || 'Event'}</Text>
+          </View>
+          <Text style={styles.findEventTitle}>{item.title || item.name}</Text>
+          {item.skillLevelRange && (
+            <Text style={styles.findEventRank}>Skill: {item.skillLevelRange}</Text>
+          )}
+          {item.sport && (
+            <View style={styles.sportBadge}>
+              <Ionicons name="tennisball-outline" size={14} color="#7B9F8C" />
+              <Text style={styles.sportBadgeText}>{item.sport}</Text>
+            </View>
+          )}
+          {item.venue && (
+            <Text style={styles.findEventVenue}>📍 {item.venue}</Text>
+          )}
+          <Text style={styles.findEventParticipants}>
+            {item.participants || 0}
+            {item.maxParticipants && `/${item.maxParticipants}`} participants
+          </Text>
         </View>
-        <Text style={styles.findEventTitle}>{item.name}</Text>
-        <Text style={styles.findEventRank}>Ranks: {item.rank}</Text>
-        {item.venue && (
-          <Text style={styles.findEventVenue}>📍 {item.venue}</Text>
+        
+        {/* Join button */}
+        {!isFull ? (
+          <TouchableOpacity 
+            style={styles.joinButton}
+            onPress={(e) => {
+              e.stopPropagation(); // Prevent triggering card press
+              handleJoinEvent(item);
+            }}
+          >
+            <Ionicons name="add" size={28} color="#FFFFFF" />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.fullBadge}>
+            <Text style={styles.fullBadgeText}>FULL</Text>
+          </View>
         )}
-        <Text style={styles.findEventParticipants}>
-          {item.currentParticipants}
-          {item.maxParticipants && `/${item.maxParticipants}`} participants
-        </Text>
-      </View>
-      
-      {/* Join button */}
-      {!item.isFull && (
-        <TouchableOpacity 
-          style={styles.joinButton}
-          onPress={(e) => {
-            e.stopPropagation(); // Prevent triggering card press
-            handleJoinEvent(item);
-          }}
-        >
-          <Ionicons name="add" size={28} color="#FFFFFF" />
-        </TouchableOpacity>
-      )}
-      
-      {item.isFull && (
-        <View style={styles.fullBadge}>
-          <Text style={styles.fullBadgeText}>FULL</Text>
-        </View>
-      )}
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   /**
    * Empty state component
-   * Shows when no events exist for selected date
+   * Shows when no events exist
    */
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
       <Ionicons name="calendar-outline" size={48} color="#666666" />
       <Text style={styles.emptyStateText}>
         {activeTab === 'myEvents' 
-          ? 'No events scheduled for this day'
+          ? 'No upcoming events'
           : 'No events available to join'}
+      </Text>
+      <Text style={styles.emptyStateSubtext}>
+        {activeTab === 'myEvents' 
+          ? 'Create your first event to get started'
+          : 'Check back later for new events'}
       </Text>
       {activeTab === 'myEvents' && (
         <TouchableOpacity 
@@ -534,12 +557,23 @@ const styles = StyleSheet.create({
   findEventRank: {
     color: '#666666',
     fontSize: 14,
-    marginBottom: 3,
+    marginBottom: 5,
+  },
+  sportBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 5,
+  },
+  sportBadgeText: {
+    color: '#7B9F8C',
+    fontSize: 13,
+    fontWeight: '500',
   },
   findEventVenue: {
     color: '#999999',
     fontSize: 13,
-    marginBottom: 3,
+    marginBottom: 5,
   },
   findEventParticipants: {
     color: '#7B9F8C',
@@ -573,9 +607,16 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
   },
   emptyStateText: {
-    color: '#666666',
-    fontSize: 16,
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
     marginTop: 16,
+    textAlign: 'center',
+  },
+  emptyStateSubtext: {
+    color: '#666666',
+    fontSize: 14,
+    marginTop: 8,
     textAlign: 'center',
   },
   createEventButton: {

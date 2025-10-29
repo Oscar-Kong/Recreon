@@ -18,12 +18,17 @@ import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '../hooks/useAuth';
+import EditProfileModal from '../components/profile/EditProfileModal';
+import AddSportModal from '../components/profile/AddSportModal';
 
 const ProfileScreen = ({ navigation }) => {
-  const { user: authUser, updateProfile } = useAuth();
+  const { user: authUser, updateProfile, addSportProfile, removeSportProfile } = useAuth();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [addSportModalVisible, setAddSportModalVisible] = useState(false);
+  const [editSportsMode, setEditSportsMode] = useState(false);
 
   // Fetch user data when screen comes into focus
   useFocusEffect(
@@ -55,7 +60,19 @@ const ProfileScreen = ({ navigation }) => {
   };
 
   const handleEditProfile = () => {
-    Alert.alert('Coming Soon', 'Edit profile functionality will be available soon.');
+    setEditModalVisible(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const handleSaveProfile = async (profileData) => {
+    try {
+      await updateProfile(profileData);
+      await fetchUserData();
+      Alert.alert('Success', 'Profile updated successfully');
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      Alert.alert('Error', error.error || 'Failed to update profile');
+    }
   };
 
   const handleChangeAvatar = async () => {
@@ -75,13 +92,46 @@ const ProfileScreen = ({ navigation }) => {
 
     if (!result.canceled) {
       try {
-        // TODO: Implement avatar upload to backend
+        // TODO: Implement avatar upload to backend via upload route
         Alert.alert('Coming Soon', 'Avatar upload will be available soon.');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } catch (error) {
         Alert.alert('Error', 'Failed to upload avatar');
       }
     }
+  };
+
+  const handleAddSport = async (sportData) => {
+    try {
+      await addSportProfile(sportData);
+      await fetchUserData();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const handleRemoveSport = (sportProfile) => {
+    Alert.alert(
+      'Remove Sport',
+      `Are you sure you want to remove ${sportProfile.sport.displayName} from your profile?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await removeSportProfile(sportProfile.sportId);
+              await fetchUserData();
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            } catch (error) {
+              Alert.alert('Error', error.error || 'Failed to remove sport');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleSettings = () => {
@@ -97,6 +147,36 @@ const ProfileScreen = ({ navigation }) => {
       PROFESSIONAL: '#9333EA',
     };
     return colors[level] || '#666666';
+  };
+
+  const getSportIcon = (sportName) => {
+    const icons = {
+      'Tennis': 'tennisball-outline',
+      'Basketball': 'basketball-outline',
+      'Football': 'football-outline',
+      'Soccer': 'football-outline',
+      'Volleyball': 'baseball-outline',
+      'Baseball': 'baseball-outline',
+      'Badminton': 'tennisball-outline',
+      'Table Tennis': 'tennisball-outline',
+      'Pickleball': 'tennisball-outline',
+      'Swimming': 'water-outline',
+      'Running': 'walk-outline',
+      'Cycling': 'bicycle-outline',
+      'Golf': 'golf-outline',
+      'default': 'fitness-outline'
+    };
+    return icons[sportName] || icons['default'];
+  };
+
+  const handleToggleEditMode = () => {
+    setEditSportsMode(!editSportsMode);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const handleAddNewSport = () => {
+    setAddSportModalVisible(true);
+    setEditSportsMode(false);
   };
 
   if (loading && !user) {
@@ -236,33 +316,64 @@ const ProfileScreen = ({ navigation }) => {
 
         {/* Sports Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Sports</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Sports</Text>
+            <View style={styles.sportsHeaderButtons}>
+              {user.sportProfiles && user.sportProfiles.length > 0 && (
+                <TouchableOpacity onPress={handleToggleEditMode} style={styles.editButton}>
+                  <Text style={[styles.editText, editSportsMode && styles.editTextActive]}>
+                    {editSportsMode ? 'Done' : 'Edit'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {!editSportsMode && (
+                <TouchableOpacity onPress={handleAddNewSport} style={styles.headerIconButton}>
+                  <Ionicons name="add-circle-outline" size={24} color="#7B9F8C" />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
           {user.sportProfiles && user.sportProfiles.length > 0 ? (
-            user.sportProfiles.map((sportProfile) => (
-              <View key={sportProfile.id} style={styles.sportCard}>
-                <View style={styles.sportInfo}>
-                  <Ionicons name="tennisball-outline" size={24} color="#7B9F8C" />
-                  <View style={styles.sportDetails}>
-                    <Text style={styles.sportName}>{sportProfile.sport.name}</Text>
-                    <Text style={styles.sportStats}>
-                      {sportProfile.matchesPlayed || 0} matches • {sportProfile.winRate || 0}% win rate
-                    </Text>
-                  </View>
+            <View style={styles.sportsIconGrid}>
+              {user.sportProfiles.map((sportProfile) => (
+                <View key={sportProfile.id} style={styles.sportIconContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.sportIconCircle,
+                      { borderColor: getSkillLevelColor(sportProfile.skillLevel) }
+                    ]}
+                  >
+                    <Ionicons 
+                      name={getSportIcon(sportProfile.sport.displayName)} 
+                      size={32} 
+                      color={getSkillLevelColor(sportProfile.skillLevel)} 
+                    />
+                    {editSportsMode && (
+                      <TouchableOpacity
+                        style={styles.deleteIconButton}
+                        onPress={() => handleRemoveSport(sportProfile)}
+                      >
+                        <Ionicons name="close-circle" size={20} color="#DC2626" />
+                      </TouchableOpacity>
+                    )}
+                  </TouchableOpacity>
+                  <Text style={styles.sportIconName} numberOfLines={1}>
+                    {sportProfile.sport.displayName}
+                  </Text>
+                  <Text style={styles.sportIconLevel} numberOfLines={1}>
+                    {sportProfile.skillLevel.charAt(0) + sportProfile.skillLevel.slice(1).toLowerCase()}
+                  </Text>
                 </View>
-                <View
-                  style={[
-                    styles.skillBadge,
-                    { backgroundColor: getSkillLevelColor(sportProfile.skillLevel) },
-                  ]}
-                >
-                  <Text style={styles.skillText}>{sportProfile.skillLevel}</Text>
-                </View>
-              </View>
-            ))
+              ))}
+            </View>
           ) : (
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateText}>No sports added yet</Text>
-              <TouchableOpacity style={styles.addSportButton}>
+              <TouchableOpacity
+                style={styles.addSportButton}
+                onPress={handleAddNewSport}
+              >
                 <Ionicons name="add-circle-outline" size={24} color="#7B9F8C" />
                 <Text style={styles.addSportText}>Add Sport</Text>
               </TouchableOpacity>
@@ -304,6 +415,21 @@ const ProfileScreen = ({ navigation }) => {
           </View>
         </View>
       </ScrollView>
+
+      {/* Modals */}
+      <EditProfileModal
+        visible={editModalVisible}
+        onClose={() => setEditModalVisible(false)}
+        user={user}
+        onSave={handleSaveProfile}
+      />
+
+      <AddSportModal
+        visible={addSportModalVisible}
+        onClose={() => setAddSportModalVisible(false)}
+        onAdd={handleAddSport}
+        existingSportIds={user?.sportProfiles?.map(sp => sp.sportId) || []}
+      />
     </SafeAreaView>
   );
 };
@@ -486,12 +612,72 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
     color: '#FFFFFF',
-    marginBottom: 16,
   },
   seeAll: {
     fontSize: 14,
     color: '#7B9F8C',
     fontWeight: '500',
+  },
+  sportsHeaderButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  editButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  editText: {
+    fontSize: 16,
+    color: '#7B9F8C',
+    fontWeight: '500',
+  },
+  editTextActive: {
+    color: '#DC2626',
+    fontWeight: '600',
+  },
+  headerIconButton: {
+    padding: 4,
+  },
+  sportsIconGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    marginTop: 8,
+  },
+  sportIconContainer: {
+    alignItems: 'center',
+    width: 80,
+  },
+  sportIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#1A1A1A',
+    borderWidth: 3,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    marginBottom: 8,
+  },
+  deleteIconButton: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#000000',
+    borderRadius: 10,
+  },
+  sportIconName: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    fontWeight: '500',
+    textAlign: 'center',
+    marginBottom: 2,
+  },
+  sportIconLevel: {
+    fontSize: 10,
+    color: '#666666',
+    textAlign: 'center',
   },
   rankingsRow: {
     flexDirection: 'row',

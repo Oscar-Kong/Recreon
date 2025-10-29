@@ -6,35 +6,71 @@ services:
   # ========================================
   database:
     image: postgres:16-alpine
-    container_name: clubroom-db
+    container_name: recreon-db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: clubroom
+      POSTGRES_DB: recreon
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"  # Expose to host for local backend
+      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - clubroom-network
+      - recreon-network
+    restart: unless-stopped
 
   # ========================================
-  # Redis (optional - for future features)
+  # Redis Cache
   # ========================================
   redis:
     image: redis:7-alpine
-    container_name: clubroom-redis
+    container_name: recreon-redis
     ports:
-      - "6379:6379"  # Expose to host for local backend
+      - "6379:6379"
     volumes:
       - redis_data:/data
     networks:
-      - clubroom-network
+      - recreon-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  # ========================================
+  # Backend API Server
+  # ========================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: recreon-backend
+    environment:
+      NODE_ENV: development
+      PORT: 5001
+      DATABASE_URL: postgresql://postgres:postgres@database:5432/recreon?schema=public
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      REDIS_URL: redis://redis:6379
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/prisma:/app/prisma
+      - /app/node_modules
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - recreon-network
+    restart: unless-stopped
+    command: /app/start.sh
 
 volumes:
   postgres_data:
@@ -43,5 +79,5 @@ volumes:
     driver: local
 
 networks:
-  clubroom-network:
+  recreon-network:
     driver: bridge

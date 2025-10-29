@@ -15,6 +15,7 @@ import {
   ScrollView,
   Keyboard,
   TouchableWithoutFeedback,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -106,11 +107,11 @@ export default function LoginScreen({ navigation }) {
               >
                 {/* Logo Section */}
                 <View style={styles.logoContainer}>
-                  <View style={styles.logoCircle}>
-                    <Ionicons name="chatbubble-ellipses" size={50} color="#4CAF50" />
-                  </View>
-                  <Text style={styles.appName}>ChatApp</Text>
-                  <Text style={styles.tagline}>Connect & Chat</Text>
+                  <Image 
+                    source={require('../../../assets/recreon-logo.png')} 
+                    style={styles.logoImage}
+                    resizeMode="contain"
+                  />
                 </View>
 
                 {/* Form Section */}
@@ -224,6 +225,10 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: 'center',
     marginBottom: 40,
+  },
+  logoImage: {
+    width: 280,
+    height: 150,
   },
   logoCircle: {
     width: 100,

@@ -244,7 +244,7 @@ const HomeScreen = ({ navigation }) => {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.appName}>PlayNow</Text>
+          <Text style={styles.appName}>Recreon</Text>
           <TouchableOpacity>
             <Ionicons name="notifications-outline" size={24} color="#FFFFFF" />
           </TouchableOpacity>

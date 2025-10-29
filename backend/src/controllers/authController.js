@@ -323,9 +323,199 @@ const updateProfile = async (req, res) => {
   }
 };
 
+// Change password
+const changePassword = async (req, res) => {
+  console.log('🔒 ChangePassword endpoint hit for userId:', req.userId);
+  
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.userId;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current and new password are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    }
+
+    // Get user with password
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Verify current password
+    const isValidPassword = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isValidPassword) {
+      console.log('❌ Invalid current password');
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    // Hash new password
+    const newPasswordHash = await bcrypt.hash(newPassword, 10);
+
+    // Update password
+    await prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: newPasswordHash }
+    });
+
+    console.log('✅ Password changed successfully');
+    res.json({ success: true, message: 'Password changed successfully' });
+
+  } catch (error) {
+    console.error('❌ Change password error:', error);
+    res.status(500).json({ error: 'Failed to change password' });
+  }
+};
+
+// Delete account
+const deleteAccount = async (req, res) => {
+  console.log('🗑️ DeleteAccount endpoint hit for userId:', req.userId);
+  
+  try {
+    const userId = req.userId;
+
+    // Delete user (cascade will handle related records)
+    await prisma.user.delete({
+      where: { id: userId }
+    });
+
+    console.log('✅ Account deleted successfully');
+    res.json({ success: true, message: 'Account deleted successfully' });
+
+  } catch (error) {
+    console.error('❌ Delete account error:', error);
+    res.status(500).json({ error: 'Failed to delete account' });
+  }
+};
+
+// Add sport profile
+const addSportProfile = async (req, res) => {
+  console.log('➕ AddSportProfile endpoint hit for userId:', req.userId);
+  
+  try {
+    const { sportId, skillLevel, yearsPlaying } = req.body;
+    const userId = req.userId;
+
+    if (!sportId || !skillLevel) {
+      return res.status(400).json({ error: 'Sport ID and skill level are required' });
+    }
+
+    // Check if profile already exists
+    const existing = await prisma.userSportProfile.findUnique({
+      where: {
+        userId_sportId: {
+          userId,
+          sportId: parseInt(sportId)
+        }
+      }
+    });
+
+    if (existing) {
+      return res.status(400).json({ error: 'You already have a profile for this sport' });
+    }
+
+    // Create sport profile
+    const sportProfile = await prisma.userSportProfile.create({
+      data: {
+        userId,
+        sportId: parseInt(sportId),
+        skillLevel,
+        yearsPlaying: yearsPlaying || 0
+      },
+      include: {
+        sport: true
+      }
+    });
+
+    console.log('✅ Sport profile added successfully');
+    res.json({ sportProfile });
+
+  } catch (error) {
+    console.error('❌ Add sport profile error:', error);
+    res.status(500).json({ error: 'Failed to add sport profile' });
+  }
+};
+
+// Remove sport profile
+const removeSportProfile = async (req, res) => {
+  console.log('➖ RemoveSportProfile endpoint hit for userId:', req.userId);
+  
+  try {
+    const { sportId } = req.params;
+    const userId = req.userId;
+
+    await prisma.userSportProfile.delete({
+      where: {
+        userId_sportId: {
+          userId,
+          sportId: parseInt(sportId)
+        }
+      }
+    });
+
+    console.log('✅ Sport profile removed successfully');
+    res.json({ success: true, message: 'Sport profile removed' });
+
+  } catch (error) {
+    console.error('❌ Remove sport profile error:', error);
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'Sport profile not found' });
+    }
+    res.status(500).json({ error: 'Failed to remove sport profile' });
+  }
+};
+
+// Update sport profile
+const updateSportProfile = async (req, res) => {
+  console.log('✏️ UpdateSportProfile endpoint hit for userId:', req.userId);
+  
+  try {
+    const { sportId } = req.params;
+    const { skillLevel, yearsPlaying } = req.body;
+    const userId = req.userId;
+
+    const sportProfile = await prisma.userSportProfile.update({
+      where: {
+        userId_sportId: {
+          userId,
+          sportId: parseInt(sportId)
+        }
+      },
+      data: {
+        skillLevel: skillLevel || undefined,
+        yearsPlaying: yearsPlaying !== undefined ? yearsPlaying : undefined
+      },
+      include: {
+        sport: true
+      }
+    });
+
+    console.log('✅ Sport profile updated successfully');
+    res.json({ sportProfile });
+
+  } catch (error) {
+    console.error('❌ Update sport profile error:', error);
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'Sport profile not found' });
+    }
+    res.status(500).json({ error: 'Failed to update sport profile' });
+  }
+};
+
 module.exports = {
   register,
   login,
   getMe,
-  updateProfile
+  updateProfile,
+  changePassword,
+  deleteAccount,
+  addSportProfile,
+  removeSportProfile,
+  updateSportProfile
 };

@@ -11,13 +11,17 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
 import { useAuth } from '../hooks/useAuth';
+import ChangePasswordModal from '../components/settings/ChangePasswordModal';
 
 const SettingsScreen = ({ navigation }) => {
-  const { logout } = useAuth();
+  const { logout, changePassword, deleteAccount } = useAuth();
   const [pushEnabled, setPushEnabled] = useState(true);
   const [emailEnabled, setEmailEnabled] = useState(true);
   const [locationEnabled, setLocationEnabled] = useState(true);
+  const [profileVisibility, setProfileVisibility] = useState('Everyone');
+  const [changePasswordVisible, setChangePasswordVisible] = useState(false);
 
   const handleLogout = () => {
     Alert.alert(
@@ -40,6 +44,14 @@ const SettingsScreen = ({ navigation }) => {
     );
   };
 
+  const handleChangePassword = async (currentPassword, newPassword) => {
+    try {
+      await changePassword(currentPassword, newPassword);
+    } catch (error) {
+      throw error;
+    }
+  };
+
   const handleDeleteAccount = () => {
     Alert.alert(
       'Delete Account',
@@ -49,10 +61,77 @@ const SettingsScreen = ({ navigation }) => {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            Alert.alert('Coming Soon', 'Account deletion will be available soon.');
+          onPress: async () => {
+            // Second confirmation
+            Alert.alert(
+              'Final Confirmation',
+              'Are you absolutely sure? This cannot be undone.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete Forever',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                      await deleteAccount();
+                      Alert.alert('Account Deleted', 'Your account has been permanently deleted.');
+                    } catch (error) {
+                      Alert.alert('Error', error.error || 'Failed to delete account');
+                    }
+                  },
+                },
+              ]
+            );
           },
         },
+      ]
+    );
+  };
+
+  const handleToggleChange = async (type, value) => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    switch (type) {
+      case 'push':
+        setPushEnabled(value);
+        break;
+      case 'email':
+        setEmailEnabled(value);
+        break;
+      case 'location':
+        setLocationEnabled(value);
+        break;
+    }
+  };
+
+  const handleProfileVisibility = () => {
+    Alert.alert(
+      'Profile Visibility',
+      'Choose who can see your profile',
+      [
+        {
+          text: 'Everyone',
+          onPress: () => {
+            setProfileVisibility('Everyone');
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          },
+        },
+        {
+          text: 'Friends Only',
+          onPress: () => {
+            setProfileVisibility('Friends Only');
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          },
+        },
+        {
+          text: 'Private',
+          onPress: () => {
+            setProfileVisibility('Private');
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
       ]
     );
   };
@@ -107,17 +186,17 @@ const SettingsScreen = ({ navigation }) => {
           <SettingRow
             icon="person-outline"
             title="Edit Profile"
-            onPress={() => Alert.alert('Coming Soon', 'Edit profile coming soon')}
+            onPress={() => navigation.navigate('Profile')}
           />
           <SettingRow
             icon="lock-closed-outline"
             title="Change Password"
-            onPress={() => Alert.alert('Coming Soon', 'Change password coming soon')}
+            onPress={() => setChangePasswordVisible(true)}
           />
           <SettingRow
             icon="shield-outline"
             title="Privacy"
-            onPress={() => Alert.alert('Coming Soon', 'Privacy settings coming soon')}
+            onPress={handleProfileVisibility}
           />
         </SettingSection>
 
@@ -126,13 +205,13 @@ const SettingsScreen = ({ navigation }) => {
             icon="notifications-outline"
             title="Push Notifications"
             value={pushEnabled}
-            onValueChange={setPushEnabled}
+            onValueChange={(value) => handleToggleChange('push', value)}
           />
           <SettingToggle
             icon="mail-outline"
             title="Email Notifications"
             value={emailEnabled}
-            onValueChange={setEmailEnabled}
+            onValueChange={(value) => handleToggleChange('email', value)}
           />
         </SettingSection>
 
@@ -141,13 +220,13 @@ const SettingsScreen = ({ navigation }) => {
             icon="location-outline"
             title="Location Services"
             value={locationEnabled}
-            onValueChange={setLocationEnabled}
+            onValueChange={(value) => handleToggleChange('location', value)}
           />
           <SettingRow
             icon="eye-outline"
             title="Who can see my profile"
-            value="Everyone"
-            onPress={() => Alert.alert('Coming Soon', 'Privacy controls coming soon')}
+            value={profileVisibility}
+            onPress={handleProfileVisibility}
           />
         </SettingSection>
 
@@ -184,6 +263,13 @@ const SettingsScreen = ({ navigation }) => {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        visible={changePasswordVisible}
+        onClose={() => setChangePasswordVisible(false)}
+        onSave={handleChangePassword}
+      />
     </SafeAreaView>
   );
 };

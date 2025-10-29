@@ -137,5 +137,60 @@ export const authService = {
     } catch (error) {
       console.error('Error clearing stored data:', error);
     }
+  },
+
+  async changePassword(currentPassword, newPassword) {
+    try {
+      const response = await api.put('/auth/change-password', {
+        currentPassword,
+        newPassword
+      });
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || { error: 'Failed to change password' };
+    }
+  },
+
+  async deleteAccount() {
+    try {
+      const response = await api.delete('/auth/delete-account');
+      await this.clearStoredData();
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || { error: 'Failed to delete account' };
+    }
+  },
+
+  async addSportProfile(sportData) {
+    try {
+      const response = await api.post('/auth/sport-profiles', sportData);
+      // Update stored user data
+      const updatedUser = await this.getCurrentUser();
+      return response.data.sportProfile;
+    } catch (error) {
+      throw error.response?.data || { error: 'Failed to add sport profile' };
+    }
+  },
+
+  async removeSportProfile(sportId) {
+    try {
+      const response = await api.delete(`/auth/sport-profiles/${sportId}`);
+      // Update stored user data
+      await this.getCurrentUser();
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || { error: 'Failed to remove sport profile' };
+    }
+  },
+
+  async updateSportProfile(sportId, sportData) {
+    try {
+      const response = await api.put(`/auth/sport-profiles/${sportId}`, sportData);
+      // Update stored user data
+      await this.getCurrentUser();
+      return response.data.sportProfile;
+    } catch (error) {
+      throw error.response?.data || { error: 'Failed to update sport profile' };
+    }
   }
 };

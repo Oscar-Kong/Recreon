@@ -39,5 +39,12 @@ router.post('/login', loginValidation, authController.login);
 // Protected routes
 router.get('/me', authMiddleware, authController.getMe);
 router.put('/profile', authMiddleware, authController.updateProfile);
+router.put('/change-password', authMiddleware, authController.changePassword);
+router.delete('/delete-account', authMiddleware, authController.deleteAccount);
+
+// User sport profiles
+router.post('/sport-profiles', authMiddleware, authController.addSportProfile);
+router.delete('/sport-profiles/:sportId', authMiddleware, authController.removeSportProfile);
+router.put('/sport-profiles/:sportId', authMiddleware, authController.updateSportProfile);
 
 module.exports = router;

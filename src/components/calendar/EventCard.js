@@ -35,6 +35,32 @@ const EventCard = ({ event, onPress, onLongPress }) => {
     return colors[type?.toLowerCase()] || '#666666';
   };
 
+  // Get event title safely
+  const eventTitle = event.title || event.name || 'Untitled Event';
+
+  // Format the date for display
+  const formatEventDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    // Check if it's today or tomorrow
+    if (date.toDateString() === today.toDateString()) {
+      return 'Today';
+    } else if (date.toDateString() === tomorrow.toDateString()) {
+      return 'Tomorrow';
+    } else {
+      // Format as "Mon, Dec 25"
+      return date.toLocaleDateString('en-US', { 
+        weekday: 'short', 
+        month: 'short', 
+        day: 'numeric' 
+      });
+    }
+  };
+
   return (
     <TouchableOpacity 
       style={styles.container} 
@@ -44,9 +70,12 @@ const EventCard = ({ event, onPress, onLongPress }) => {
     >
       <View style={[styles.colorIndicator, { backgroundColor: event.color || '#7B9F8C' }]} />
       <View style={styles.content}>
-        {/* Header: Time and Type */}
+        {/* Header: Date, Time and Type */}
         <View style={styles.header}>
-          <Text style={styles.time}>{event.time}</Text>
+          {event.startTime && (
+            <Text style={styles.date}>{formatEventDate(event.startTime)}</Text>
+          )}
+          {event.time && <Text style={styles.time}>• {event.time}</Text>}
           {event.eventType && (
             <View style={[styles.typeBadge, { backgroundColor: getTypeBadgeColor(event.eventType) }]}>
               <Text style={styles.typeBadgeText}>{event.eventType?.toUpperCase()}</Text>
@@ -55,7 +84,7 @@ const EventCard = ({ event, onPress, onLongPress }) => {
         </View>
 
         {/* Event Title */}
-        <Text style={styles.title}>{event.name || event.title}</Text>
+        <Text style={styles.title}>{eventTitle}</Text>
 
         {/* Sport Name */}
         {event.sport && (
@@ -127,6 +156,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 6,
     gap: 8,
+    flexWrap: 'wrap',
+  },
+  date: {
+    color: '#7B9F8C',
+    fontSize: 14,
+    fontWeight: '600',
   },
   time: {
     color: '#FFFFFF',

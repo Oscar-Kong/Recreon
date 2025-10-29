@@ -238,31 +238,37 @@ exports.getDiscoverEvents = async (req, res) => {
     }
 
     // Transform events for frontend
-    const transformedEvents = filteredEvents.map(event => ({
-      id: event.id.toString(),
-      name: event.title,
-      title: event.title,
-      date: event.startTime,
-      time: formatTime(event.startTime),
-      location: event.venue || 'TBD',
-      venue: event.venue,
-      participants: event._count.participants,
-      maxParticipants: event.maxParticipants,
-      color: getEventColor(event.eventType, event.tags),
-      sport: event.sport?.displayName || event.sport?.name,
-      sportId: event.sportId,
-      eventType: event.eventType,
-      description: event.description,
-      startTime: event.startTime,
-      endTime: event.endTime,
-      skillLevelRange: formatSkillLevel(event.skillLevelMin, event.skillLevelMax),
-      creator: event.creator,
-      status: event.status,
-      tags: event.tags.map(tag => ({
-        name: tag.tagName,
-        color: tag.tagColor
-      }))
-    }));
+    const transformedEvents = filteredEvents.map(event => {
+      const participantCount = event._count.participants;
+      const isFull = event.maxParticipants ? participantCount >= event.maxParticipants : false;
+      
+      return {
+        id: event.id.toString(),
+        name: event.title,
+        title: event.title,
+        date: event.startTime,
+        time: formatTime(event.startTime),
+        location: event.venue || 'TBD',
+        venue: event.venue,
+        participants: participantCount,
+        maxParticipants: event.maxParticipants,
+        isFull,
+        color: getEventColor(event.eventType, event.tags),
+        sport: event.sport?.displayName || event.sport?.name,
+        sportId: event.sportId,
+        eventType: event.eventType,
+        description: event.description,
+        startTime: event.startTime,
+        endTime: event.endTime,
+        skillLevelRange: formatSkillLevel(event.skillLevelMin, event.skillLevelMax),
+        creator: event.creator,
+        status: event.status,
+        tags: event.tags.map(tag => ({
+          name: tag.tagName,
+          color: tag.tagColor
+        }))
+      };
+    });
 
     res.json({ events: transformedEvents });
 
@@ -724,13 +730,13 @@ exports.leaveEvent = async (req, res) => {
 // ============================================
 
 /**
- * Format time to HH:MM format
+ * Format time to 12-hour format with AM/PM
  */
 function formatTime(date) {
   return new Date(date).toLocaleTimeString('en-US', { 
-    hour: '2-digit', 
+    hour: 'numeric', 
     minute: '2-digit',
-    hour12: false 
+    hour12: true 
   });
 }
 

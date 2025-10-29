@@ -140,17 +140,18 @@ const styles = StyleSheet.create({
   todayDay: {
     borderWidth: 1.5,
     borderColor: '#7B9F8C',
+    backgroundColor: '#7B9F8C20',
   },
   dayText: {
     color: '#FFFFFF',
     fontSize: 16,
   },
   selectedDayText: {
-    color: '#FFFFFF',
+    color: '#000000',
     fontWeight: '600',
   },
   todayDayText: {
-    color: '#7B9F8C',
+    color: '#000000',
     fontWeight: '600',
   },
   eventIndicatorContainer: {

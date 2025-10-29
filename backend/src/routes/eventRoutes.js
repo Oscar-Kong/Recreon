@@ -98,7 +98,9 @@ router.post(
       .isISO8601()
       .withMessage('Valid start time is required')
       .custom((value) => {
-        if (new Date(value) < new Date()) {
+        // Allow events up to 5 minutes in the past to account for clock drift/network delays
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+        if (new Date(value) < fiveMinutesAgo) {
           throw new Error('Start time cannot be in the past');
         }
         return true;
@@ -241,4 +243,4 @@ router.post(
   eventController.leaveEvent
 );
 
-module.exports = router
+module.exports = router;

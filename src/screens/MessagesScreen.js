@@ -52,50 +52,56 @@ const MessagesScreen = ({ navigation }) => {
   useEffect(() => {
     if (searchQuery.trim()) {
       const filtered = conversations.filter(conv => {
-        // Get other participant's name (for direct chats)
-        const otherParticipant = conv.participants?.find(p => p.userId !== user?.id);
-        const participantName = otherParticipant?.user?.fullName || 
-                                otherParticipant?.user?.username || 
-                                conv.userName || '';
+        const participantName = conv.userName || '';
+        const lastMessageContent = conv.lastMessage?.content || conv.lastMessageContent || '';
         
         // Search in participant name or last message
         return (
           participantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          conv.lastMessage?.content?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          conv.lastMessage?.toLowerCase().includes(searchQuery.toLowerCase())
+          lastMessageContent.toLowerCase().includes(searchQuery.toLowerCase())
         );
       });
       setFilteredConversations(filtered);
     } else {
       setFilteredConversations(conversations);
     }
-  }, [searchQuery, conversations, user?.id]);
+  }, [searchQuery, conversations]);
 
   const fetchConversations = async () => {
     try {
       setError(null);
       
-      // Try to fetch from API first
+      // Try to fetch from API
       const data = await messageService.getConversations();
       const apiConversations = data.conversations || [];
       
-      // If API returns conversations, use them
-      if (apiConversations.length > 0) {
-        setConversations(apiConversations);
-      } else {
-        // Fallback to mock data for development/testing
-        setConversations(getMockConversations());
-      }
+      // Transform API conversations to include necessary fields
+      const transformedConversations = apiConversations.map(conv => {
+        // Get other participant info for direct chats
+        const otherParticipant = conv.participants?.find(p => p.userId !== user?.id);
+        
+        return {
+          ...conv,
+          // Ensure consistent structure
+          userName: otherParticipant?.user?.fullName || otherParticipant?.user?.username || 'Unknown',
+          color: otherParticipant?.user?.avatarColor || '#666666',
+          avatarUrl: otherParticipant?.user?.avatarUrl,
+          timestamp: formatTimestamp(conv.lastMessageAt || conv.lastMessage?.createdAt),
+          lastMessageContent: conv.lastMessage?.content || 'No messages yet',
+        };
+      });
+      
+      setConversations(transformedConversations);
     } catch (err) {
       console.error('Error fetching conversations:', err);
       setError(err.error || 'Failed to load conversations');
       
-      // Use mock data as fallback
-      setConversations(getMockConversations());
+      // Show empty state instead of mock data
+      setConversations([]);
       
-      // Only show alert if it's not a network error
-      if (!err.message?.includes('Network')) {
-        Alert.alert('Error', 'Could not load conversations. Showing demo data.');
+      // Show alert if it's not a network/auth error
+      if (!err.message?.includes('Network') && !err.error?.includes('token')) {
+        Alert.alert('Error', 'Could not load conversations.');
       }
     } finally {
       setLoading(false);
@@ -103,59 +109,22 @@ const MessagesScreen = ({ navigation }) => {
     }
   };
 
-  const getMockConversations = () => {
-    return [
-      {
-        id: '1',
-        userId: 'u1',
-        userName: 'Ryan Choi',
-        lastMessage: 'Hey, are you coming to practice?',
-        timestamp: 'now',
-        unreadCount: 1,
-        color: '#FFFFFF',
-        isPinned: true
-      },
-      {
-        id: '2',
-        userId: 'u2',
-        userName: 'Sarah Johnson',
-        lastMessage: 'Great game today!',
-        timestamp: '5 min ago',
-        unreadCount: 0,
-        color: '#DC2626',
-        isPinned: true
-      },
-      {
-        id: '3',
-        userId: 'u3',
-        userName: 'Mike Davis',
-        lastMessage: 'See you at the court',
-        timestamp: '10 min ago',
-        unreadCount: 2,
-        color: '#D97706',
-        isPinned: false
-      },
-      {
-        id: '4',
-        userId: 'u4',
-        userName: 'Emma Wilson',
-        lastMessage: 'Thanks for the tips!',
-        timestamp: '1 hour ago',
-        unreadCount: 0,
-        color: '#059669',
-        isPinned: false
-      },
-      {
-        id: '5',
-        userId: 'u5',
-        userName: 'Alex Thompson',
-        lastMessage: 'What time tomorrow?',
-        timestamp: '2 hours ago',
-        unreadCount: 0,
-        color: '#3B82F6',
-        isPinned: false
-      },
-    ];
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return '';
+    
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return 'now';
+    if (diffMins < 60) return `${diffMins} min ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
   const setupSocketListeners = () => {
@@ -212,29 +181,15 @@ const MessagesScreen = ({ navigation }) => {
   }, []);
 
   const handleConversationPress = (conversation) => {
-    // Handle both data structures: API format and mock format
-    let userName = 'Chat';
-    let avatarColor = '#666666';
-
-    // Try to get data from API structure first (with participants)
-    if (conversation.participants && user?.id) {
-      const otherParticipant = conversation.participants.find(p => p.userId !== user.id);
-      if (otherParticipant) {
-        userName = otherParticipant.user?.fullName || otherParticipant.user?.username || userName;
-        avatarColor = otherParticipant.user?.avatarColor || avatarColor;
-      }
-    }
-    
-    // Fallback to mock data structure (simple properties)
-    if (!conversation.participants) {
-      userName = conversation.userName || userName;
-      avatarColor = conversation.color || avatarColor;
-    }
+    const userName = conversation.userName || 'Chat';
+    const avatarColor = conversation.color || '#666666';
+    const avatarUrl = conversation.avatarUrl || null;
     
     navigation.navigate('Chat', {
       conversationId: conversation.id,
       userName,
       avatarColor,
+      avatarUrl,
     });
 
     // Mark conversation as read when opening
@@ -251,13 +206,9 @@ const MessagesScreen = ({ navigation }) => {
       )
     );
 
-    // TODO: Add API call here to update lastReadAt timestamp on the server
-    // This would typically be:
-    // try {
-    //   await messageService.markAsRead(conversationId);
-    // } catch (err) {
-    //   console.error('Error marking as read:', err);
-    // }
+    // Note: Backend should have an endpoint to update lastReadAt
+    // For now, marking as read is handled locally
+    // Future: Add messageService.markAsRead(conversationId) when backend endpoint is ready
   };
 
   const handleComposePress = () => {

@@ -10,7 +10,8 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  ActivityIndicator
+  ActivityIndicator,
+  Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -47,6 +48,11 @@ const AddEventModal = ({ visible, onClose, onSubmit, selectedDate }) => {
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
   const [showSportPicker, setShowSportPicker] = useState(false);
+  
+  // Temporary state for picker values (before Done is pressed)
+  const [tempDate, setTempDate] = useState(date);
+  const [tempStartTime, setTempStartTime] = useState(startTime);
+  const [tempEndTime, setTempEndTime] = useState(endTime);
 
   // Fetch sports list when modal opens
   useEffect(() => {
@@ -54,6 +60,19 @@ const AddEventModal = ({ visible, onClose, onSubmit, selectedDate }) => {
       fetchSports();
     }
   }, [visible]);
+
+  // Sync temp states when actual states change
+  useEffect(() => {
+    setTempDate(date);
+  }, [date]);
+
+  useEffect(() => {
+    setTempStartTime(startTime);
+  }, [startTime]);
+
+  useEffect(() => {
+    setTempEndTime(endTime);
+  }, [endTime]);
 
   const fetchSports = async () => {
     try {
@@ -84,13 +103,26 @@ const AddEventModal = ({ visible, onClose, onSubmit, selectedDate }) => {
       return;
     }
 
+    // Combine the selected date with the selected times
+    const combinedStartTime = new Date(date);
+    combinedStartTime.setHours(startTime.getHours(), startTime.getMinutes(), 0, 0);
+    
+    const combinedEndTime = new Date(date);
+    combinedEndTime.setHours(endTime.getHours(), endTime.getMinutes(), 0, 0);
+
+    // Validation: Check if end time is after start time
+    if (combinedEndTime <= combinedStartTime) {
+      Alert.alert('Error', 'End time must be after start time');
+      return;
+    }
+
     const eventData = {
       title: title.trim(),
       description: description.trim(),
       sportId: selectedSportId,
       eventType: eventType,
-      startTime: startTime.toISOString(),
-      endTime: endTime.toISOString(),
+      startTime: combinedStartTime.toISOString(),
+      endTime: combinedEndTime.toISOString(),
       venue: venue.trim() || null
     };
 
@@ -157,6 +189,7 @@ const AddEventModal = ({ visible, onClose, onSubmit, selectedDate }) => {
 
   // Handler functions that ensure only one picker is open at a time
   const handleOpenDatePicker = () => {
+    setTempDate(date);
     setShowStartTimePicker(false);
     setShowEndTimePicker(false);
     setShowSportPicker(false);
@@ -164,6 +197,7 @@ const AddEventModal = ({ visible, onClose, onSubmit, selectedDate }) => {
   };
 
   const handleOpenStartTimePicker = () => {
+    setTempStartTime(startTime);
     setShowDatePicker(false);
     setShowEndTimePicker(false);
     setShowSportPicker(false);
@@ -171,6 +205,7 @@ const AddEventModal = ({ visible, onClose, onSubmit, selectedDate }) => {
   };
 
   const handleOpenEndTimePicker = () => {
+    setTempEndTime(endTime);
     setShowDatePicker(false);
     setShowStartTimePicker(false);
     setShowSportPicker(false);
@@ -182,6 +217,22 @@ const AddEventModal = ({ visible, onClose, onSubmit, selectedDate }) => {
     setShowStartTimePicker(false);
     setShowEndTimePicker(false);
     setShowSportPicker(true);
+  };
+
+  // Done button handlers
+  const handleDateDone = () => {
+    setDate(tempDate);
+    setShowDatePicker(false);
+  };
+
+  const handleStartTimeDone = () => {
+    setStartTime(tempStartTime);
+    setShowStartTimePicker(false);
+  };
+
+  const handleEndTimeDone = () => {
+    setEndTime(tempEndTime);
+    setShowEndTimePicker(false);
   };
 
   return (
@@ -334,61 +385,110 @@ const AddEventModal = ({ visible, onClose, onSubmit, selectedDate }) => {
           </ScrollView>
 
           {/* Date Picker Modal */}
-          {showDatePicker && (
-            <DateTimePicker
-              value={date}
-              mode="date"
-              display="spinner"
-              textColor="#FFFFFF"
-              onChange={(event, selectedDate) => {
-                // Only close and update when user confirms (not on every scroll)
-                if (event.type === 'dismissed') {
-                  setShowDatePicker(false);
-                } else if (event.type === 'set' && selectedDate) {
-                  setDate(selectedDate);
-                  setShowDatePicker(false);
-                }
-              }}
-            />
-          )}
+          <Modal
+            visible={showDatePicker}
+            animationType="slide"
+            transparent={true}
+            onRequestClose={() => setShowDatePicker(false)}
+          >
+            <View style={styles.pickerModalOverlay}>
+              <View style={styles.pickerModalContent}>
+                <View style={styles.pickerHeader}>
+                  <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                    <Text style={styles.pickerCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.pickerTitle}>Select Date</Text>
+                  <TouchableOpacity onPress={handleDateDone}>
+                    <Text style={styles.pickerDoneText}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={tempDate}
+                  mode="date"
+                  display="spinner"
+                  minimumDate={new Date()}
+                  themeVariant="dark"
+                  textColor="#FFFFFF"
+                  onChange={(event, selectedDate) => {
+                    if (selectedDate) {
+                      setTempDate(selectedDate);
+                    }
+                  }}
+                  style={styles.datePicker}
+                />
+              </View>
+            </View>
+          </Modal>
 
           {/* Start Time Picker Modal */}
-          {showStartTimePicker && (
-            <DateTimePicker
-              value={startTime}
-              mode="time"
-              display="spinner"
-              textColor="#FFFFFF"
-              onChange={(event, selectedTime) => {
-                // Only close and update when user confirms
-                if (event.type === 'dismissed') {
-                  setShowStartTimePicker(false);
-                } else if (event.type === 'set' && selectedTime) {
-                  setStartTime(selectedTime);
-                  setShowStartTimePicker(false);
-                }
-              }}
-            />
-          )}
+          <Modal
+            visible={showStartTimePicker}
+            animationType="slide"
+            transparent={true}
+            onRequestClose={() => setShowStartTimePicker(false)}
+          >
+            <View style={styles.pickerModalOverlay}>
+              <View style={styles.pickerModalContent}>
+                <View style={styles.pickerHeader}>
+                  <TouchableOpacity onPress={() => setShowStartTimePicker(false)}>
+                    <Text style={styles.pickerCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.pickerTitle}>Start Time</Text>
+                  <TouchableOpacity onPress={handleStartTimeDone}>
+                    <Text style={styles.pickerDoneText}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={tempStartTime}
+                  mode="time"
+                  display="spinner"
+                  themeVariant="dark"
+                  textColor="#FFFFFF"
+                  onChange={(event, selectedTime) => {
+                    if (selectedTime) {
+                      setTempStartTime(selectedTime);
+                    }
+                  }}
+                  style={styles.datePicker}
+                />
+              </View>
+            </View>
+          </Modal>
 
           {/* End Time Picker Modal */}
-          {showEndTimePicker && (
-            <DateTimePicker
-              value={endTime}
-              mode="time"
-              display="spinner"
-              textColor="#FFFFFF"
-              onChange={(event, selectedTime) => {
-                // Only close and update when user confirms
-                if (event.type === 'dismissed') {
-                  setShowEndTimePicker(false);
-                } else if (event.type === 'set' && selectedTime) {
-                  setEndTime(selectedTime);
-                  setShowEndTimePicker(false);
-                }
-              }}
-            />
-          )}
+          <Modal
+            visible={showEndTimePicker}
+            animationType="slide"
+            transparent={true}
+            onRequestClose={() => setShowEndTimePicker(false)}
+          >
+            <View style={styles.pickerModalOverlay}>
+              <View style={styles.pickerModalContent}>
+                <View style={styles.pickerHeader}>
+                  <TouchableOpacity onPress={() => setShowEndTimePicker(false)}>
+                    <Text style={styles.pickerCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.pickerTitle}>End Time</Text>
+                  <TouchableOpacity onPress={handleEndTimeDone}>
+                    <Text style={styles.pickerDoneText}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={tempEndTime}
+                  mode="time"
+                  display="spinner"
+                  themeVariant="dark"
+                  textColor="#FFFFFF"
+                  onChange={(event, selectedTime) => {
+                    if (selectedTime) {
+                      setTempEndTime(selectedTime);
+                    }
+                  }}
+                  style={styles.datePicker}
+                />
+              </View>
+            </View>
+          </Modal>
 
           {/* Sport Picker Modal */}
           <Modal
@@ -595,6 +695,44 @@ const styles = StyleSheet.create({
   },
   loader: {
     marginTop: 40,
+  },
+  pickerModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'flex-end',
+  },
+  pickerModalContent: {
+    backgroundColor: '#1A1A1A',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 20,
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+  },
+  pickerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  pickerCancelText: {
+    fontSize: 16,
+    color: '#999999',
+  },
+  pickerDoneText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#7B9F8C',
+  },
+  datePicker: {
+    backgroundColor: '#1A1A1A',
+    height: 200,
   },
 });
 

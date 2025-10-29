@@ -65,6 +65,55 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const changePassword = async (currentPassword, newPassword) => {
+    try {
+      return await authService.changePassword(currentPassword, newPassword);
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const deleteAccount = async () => {
+    try {
+      await authService.deleteAccount();
+      setUser(null);
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const addSportProfile = async (sportData) => {
+    try {
+      const sportProfile = await authService.addSportProfile(sportData);
+      // Refresh user data
+      await checkAuthStatus();
+      return sportProfile;
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const removeSportProfile = async (sportId) => {
+    try {
+      await authService.removeSportProfile(sportId);
+      // Refresh user data
+      await checkAuthStatus();
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const updateSportProfile = async (sportId, sportData) => {
+    try {
+      const sportProfile = await authService.updateSportProfile(sportId, sportData);
+      // Refresh user data
+      await checkAuthStatus();
+      return sportProfile;
+    } catch (error) {
+      throw error;
+    }
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -73,6 +122,11 @@ export const AuthProvider = ({ children }) => {
       register,
       logout,
       updateProfile,
+      changePassword,
+      deleteAccount,
+      addSportProfile,
+      removeSportProfile,
+      updateSportProfile,
       checkAuthStatus
     }}>
       {children}

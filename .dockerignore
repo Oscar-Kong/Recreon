@@ -1,16 +1,42 @@
-node_modules
+# Node modules
+node_modules/
 npm-debug.log
-.expo
-.expo-shared
-.git
-.gitignore
+yarn-error.log
+
+# Environment files (will be passed via docker-compose)
+.env
 .env.local
 .env.*.local
-.vscode
-.idea
-*.log
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
 .DS_Store
-README.md
-docker-compose.yml
+Thumbs.db
+
+# Build artifacts
+dist/
+build/
+*.log
+
+# Testing
+coverage/
+.nyc_output/
+
+# Documentation
+*.md
+docs/
+
+# Docker
+docker-compose*.yml
 Dockerfile
 .dockerignore

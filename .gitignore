@@ -31,9 +31,15 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
+backend/.env
+backend/.env.local
 
 # typescript
 *.tsbuildinfo
 
 app-example
+
+# Docker
+docker-compose.override.yml
