@@ -26,7 +26,10 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
     "prisma": "^6.13.0",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "express-rate-limit": "^7.1.5",
+    "rate-limit-redis": "^4.2.0",
+    "redis": "^4.6.12"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

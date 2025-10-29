@@ -508,6 +508,52 @@ const updateSportProfile = async (req, res) => {
   }
 };
 
+/**
+ * Refresh Token
+ * Get new access token using refresh token
+ */
+const refreshToken = async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return res.status(400).json({ error: 'Refresh token is required' });
+    }
+
+    // For now, just generate a new token using the old method
+    // TODO: Implement full token manager when packages are installed
+    try {
+      const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
+      const newToken = generateToken(decoded.userId, decoded.username);
+      
+      res.json({
+        accessToken: newToken,
+        message: 'Token refreshed successfully',
+      });
+    } catch (error) {
+      res.status(401).json({ error: 'Invalid or expired refresh token' });
+    }
+
+  } catch (error) {
+    console.error('❌ Refresh token error:', error);
+    res.status(500).json({ error: 'Failed to refresh token' });
+  }
+};
+
+/**
+ * Logout
+ * Revoke refresh token (placeholder for now)
+ */
+const logout = async (req, res) => {
+  try {
+    // TODO: Implement token revocation when token manager is active
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('❌ Logout error:', error);
+    res.status(500).json({ error: 'Failed to logout' });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -517,5 +563,7 @@ module.exports = {
   deleteAccount,
   addSportProfile,
   removeSportProfile,
-  updateSportProfile
+  updateSportProfile,
+  refreshToken,
+  logout,
 };

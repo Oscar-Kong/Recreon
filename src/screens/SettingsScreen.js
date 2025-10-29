@@ -184,11 +184,6 @@ const SettingsScreen = ({ navigation }) => {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <SettingSection title="ACCOUNT">
           <SettingRow
-            icon="person-outline"
-            title="Edit Profile"
-            onPress={() => navigation.navigate('Profile')}
-          />
-          <SettingRow
             icon="lock-closed-outline"
             title="Change Password"
             onPress={() => setChangePasswordVisible(true)}
